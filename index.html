@@ -6361,34 +6361,118 @@ render() {
     }
 }
 
-// ADD this new mobile render method AFTER the render() method:
+/**
+ * Mobile-specific render method - minimal rendering for performance
+ */
 mobileRender() {
     // CRITICAL: Exit immediately if not in gameplay
     if (this.currentState !== this.gameStates.GAMEPLAY) {
         this.canvas.style.display = 'none';
         return;
     }
-
+    
     // Simple performance check
     const now = performance.now();
     if (this.lastMobileRender && now - this.lastMobileRender < 50) return; // Max 20 FPS
     this.lastMobileRender = now;
-
-    // Ensure canvas is visible for mobile gameplay
-    this.canvas.style.display = 'block';
-    this.canvas.style.visibility = 'visible';
-    this.canvas.style.opacity = '1';
-
+    
     // Clear canvas efficiently
     this.ctx.fillStyle = '#87CEEB'; // Sky blue background
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-    // Only draw essential game elements
-    this.drawMobilePolitician();
-    this.drawMobileAide();
-    this.drawMobileProjectiles();
     
-    // NO particles, crowds, effects, or complex graphics
+    // Only draw essential game elements
+    try {
+        this.drawMobilePolitician();
+        this.drawMobileAide();
+        this.drawMobileProjectiles();
+    } catch (error) {
+        console.warn('Mobile render error:', error);
+        // Fallback to simple shapes if methods fail
+        this.drawFallbackGameElements();
+    }
+}
+
+/**
+ * Draw politician for mobile - simple representation
+ */
+drawMobilePolitician() {
+    const p = this.politician;
+    
+    // Simple colored rectangle for politician
+    this.ctx.fillStyle = this.politicianHealth > 50 ? '#9370DB' : '#8B008B';
+    this.ctx.fillRect(p.x, p.y, 75, 100);
+    
+    // Simple stain indicators (max 3)
+    if (p.stains && p.stains.length > 0) {
+        this.ctx.fillStyle = '#FF4757';
+        const visibleStains = p.stains.slice(-3); // Only show last 3 stains
+        visibleStains.forEach(stain => {
+            this.ctx.beginPath();
+            this.ctx.arc(
+                p.hitbox.x + stain.x, 
+                p.hitbox.y + stain.y, 
+                Math.min(stain.size, 8), // Cap stain size
+                0, Math.PI * 2
+            );
+            this.ctx.fill();
+        });
+    }
+}
+
+/**
+ * Draw aide for mobile - simple representation  
+ */
+drawMobileAide() {
+    const a = this.aide;
+    
+    // Simple colored rectangle for aide
+    this.ctx.fillStyle = a.shield ? '#00FFFF' : '#4169E1';
+    this.ctx.fillRect(a.x, a.y + (a.bounceY || 0), 60, 80);
+    
+    // Simple shield indicator
+    if (a.shield) {
+        this.ctx.strokeStyle = '#00FFFF';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.arc(a.x + 30, a.y + 40 + (a.bounceY || 0), 35, 0, Math.PI * 2);
+        this.ctx.stroke();
+    }
+}
+
+/**
+ * Draw projectiles for mobile - simple representation
+ */
+drawMobileProjectiles() {
+    // Simple circles for projectiles
+    if (this.projectiles && this.projectiles.length > 0) {
+        this.projectiles.forEach(proj => {
+            this.ctx.fillStyle = proj.color || '#FF0000';
+            this.ctx.beginPath();
+            this.ctx.arc(proj.x, proj.y, Math.max(proj.size/2, 8), 0, Math.PI * 2);
+            this.ctx.fill();
+        });
+    }
+}
+
+/**
+ * Fallback drawing method if other methods fail
+ */
+drawFallbackGameElements() {
+    // Ultra-simple fallback - just colored rectangles
+    
+    // Politician
+    this.ctx.fillStyle = '#9370DB';
+    this.ctx.fillRect(this.politician.x, this.politician.y, 75, 100);
+    
+    // Aide
+    this.ctx.fillStyle = '#4169E1';
+    this.ctx.fillRect(this.aide.x, this.aide.y, 60, 80);
+    
+    // Projectiles
+    this.ctx.fillStyle = '#FF0000';
+    this.projectiles.forEach(proj => {
+        this.ctx.fillRect(proj.x - 10, proj.y - 10, 20, 20);
+    });
 }
 
 /**
