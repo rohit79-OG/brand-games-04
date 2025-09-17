@@ -6361,96 +6361,267 @@ render() {
     }
 }
 
+// OPTIONAL: Enhanced mobile graphics while maintaining performance
+// Replace the existing mobile draw methods with these enhanced versions
+
 /**
- * Mobile-specific render method - minimal rendering for performance
+ * Mobile politician using original sprite system
+ */
+drawMobilePolitician() {
+    const p = this.politician;
+    
+    // Try to use your original sprite system first
+    const spriteDrawn = this.drawCharacterSprite(
+        'politician',
+        p.x,
+        p.y,
+        90,  // Keep original size
+        130, // Keep original size  
+        'idle' // Use simple animation for mobile performance
+    );
+    
+    // If sprite system fails, use a better fallback than rectangles
+    if (!spriteDrawn) {
+        this.drawDetailedPoliticianFallback();
+    }
+    
+    // Always draw stains using your original method
+    if (p.stains && p.stains.length > 0) {
+        this.drawPoliticianStains(p); // Your existing method
+    }
+}
+
+/**
+ * Mobile aide using original sprite system  
+ */
+drawMobileAide() {
+    const a = this.aide;
+    
+    // Try to use your original sprite system first
+    const spriteDrawn = this.drawCharacterSprite(
+        'aide',
+        a.x,
+        a.y + (a.bounceY || 0),
+        100, // Keep original size
+        130, // Keep original size
+        'idle' // Use simple animation for mobile performance
+    );
+    
+    // If sprite system fails, use a better fallback than rectangles
+    if (!spriteDrawn) {
+        this.drawDetailedAideFallback();
+    }
+    
+    // Always draw shield using your original method
+    if (a.shield) {
+        this.drawShieldEffect(a); // Your existing method
+    }
+}
+
+/**
+ * Enhanced mobile projectiles with type indicators
+ */
+drawMobileProjectiles() {
+    if (this.projectiles && this.projectiles.length > 0) {
+        this.projectiles.forEach(proj => {
+            // Main projectile body
+            this.ctx.fillStyle = proj.color || '#FF0000';
+            this.ctx.beginPath();
+            this.ctx.arc(proj.x, proj.y, Math.max(proj.size/2, 8), 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // Simple type indicators
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.font = '12px Arial';
+            this.ctx.textAlign = 'center';
+            
+            let symbol = '•';
+            switch(proj.type) {
+                case 'tomato': symbol = '🍅'; break;
+                case 'egg': symbol = '🥚'; break;
+                case 'shoe': symbol = '👟'; break;
+                case 'bottle': symbol = '🍾'; break;
+                case 'stone': symbol = '⚫'; break;
+                case 'banana': symbol = '🍌'; break;
+                case 'apple': symbol = '🍎'; break;
+            }
+            
+            // Fallback to letters if emojis don't render
+            if (symbol.length > 1) {
+                this.ctx.fillText(symbol, proj.x, proj.y + 4);
+            } else {
+                const letter = proj.type.charAt(0).toUpperCase();
+                this.ctx.fillText(letter, proj.x, proj.y + 4);
+            }
+        });
+    }
+}
+
+/**
+ * Enhanced mobile render with simple background elements
  */
 mobileRender() {
-    // CRITICAL: Exit immediately if not in gameplay
     if (this.currentState !== this.gameStates.GAMEPLAY) {
         this.canvas.style.display = 'none';
         return;
     }
     
-    // Simple performance check
     const now = performance.now();
-    if (this.lastMobileRender && now - this.lastMobileRender < 50) return; // Max 20 FPS
+    if (this.lastMobileRender && now - this.lastMobileRender < 50) return;
     this.lastMobileRender = now;
     
-    // Clear canvas efficiently
-    this.ctx.fillStyle = '#87CEEB'; // Sky blue background
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    // Sky gradient background
+    const gradient = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height * 0.6);
+    gradient.addColorStop(0, '#87CEEB');
+    gradient.addColorStop(1, '#B0E0E6');
+    this.ctx.fillStyle = gradient;
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height * 0.6);
     
-    // Only draw essential game elements
+    // Simple ground
+    this.ctx.fillStyle = '#DEB887';
+    this.ctx.fillRect(0, this.canvas.height * 0.6, this.canvas.width, this.canvas.height * 0.4);
+    
+    // Simple stage
+    const centerX = this.canvas.width / 2;
+    const groundY = this.canvas.height * 0.65;
+    this.ctx.fillStyle = '#8B7355';
+    this.ctx.fillRect(centerX - 80, groundY - 10, 160, 10);
+    
+    // Draw game elements
     try {
         this.drawMobilePolitician();
         this.drawMobileAide();
         this.drawMobileProjectiles();
     } catch (error) {
-        console.warn('Mobile render error:', error);
-        // Fallback to simple shapes if methods fail
+        console.warn('Enhanced mobile render error:', error);
         this.drawFallbackGameElements();
     }
 }
 
 /**
- * Draw politician for mobile - simple representation
+ * Better politician fallback (looks more like original)
  */
-drawMobilePolitician() {
+drawDetailedPoliticianFallback() {
     const p = this.politician;
     
-    // Simple colored rectangle for politician
-    this.ctx.fillStyle = this.politicianHealth > 50 ? '#9370DB' : '#8B008B';
-    this.ctx.fillRect(p.x, p.y, 75, 100);
+    // Body (suit jacket)
+    this.ctx.fillStyle = '#1A1A1A'; // Dark suit
+    this.ctx.fillRect(p.x, p.y + 30, 75, 70);
     
-    // Simple stain indicators (max 3)
-    if (p.stains && p.stains.length > 0) {
-        this.ctx.fillStyle = '#FF4757';
-        const visibleStains = p.stains.slice(-3); // Only show last 3 stains
-        visibleStains.forEach(stain => {
-            this.ctx.beginPath();
-            this.ctx.arc(
-                p.hitbox.x + stain.x, 
-                p.hitbox.y + stain.y, 
-                Math.min(stain.size, 8), // Cap stain size
-                0, Math.PI * 2
-            );
-            this.ctx.fill();
-        });
-    }
+    // White shirt area (important for stain visibility)
+    this.ctx.fillStyle = '#FFFFFF';
+    this.ctx.fillRect(p.x + 20, p.y + 35, 35, 50);
+    
+    // Tie
+    this.ctx.fillStyle = '#CC0000';
+    this.ctx.fillRect(p.x + 35, p.y + 40, 5, 30);
+    
+    // Head (skin tone)
+    this.ctx.fillStyle = '#DEB887';
+    this.ctx.beginPath();
+    this.ctx.arc(p.x + 37, p.y + 20, 18, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    // Hair
+    this.ctx.fillStyle = '#8B4513';
+    this.ctx.beginPath();
+    this.ctx.arc(p.x + 37, p.y + 8, 20, 0, Math.PI);
+    this.ctx.fill();
+    
+    // Eyes
+    this.ctx.fillStyle = '#000';
+    this.ctx.beginPath();
+    this.ctx.arc(p.x + 32, p.y + 18, 2, 0, Math.PI * 2);
+    this.ctx.arc(p.x + 42, p.y + 18, 2, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    // Mouth
+    this.ctx.strokeStyle = '#000';
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.arc(p.x + 37, p.y + 25, 5, 0, Math.PI);
+    this.ctx.stroke();
+    
+    // Arms
+    this.ctx.fillStyle = '#1A1A1A';
+    this.ctx.fillRect(p.x - 8, p.y + 35, 12, 40);
+    this.ctx.fillRect(p.x + 71, p.y + 35, 12, 40);
+    
+    // Hands
+    this.ctx.fillStyle = '#DEB887';
+    this.ctx.beginPath();
+    this.ctx.arc(p.x - 2, p.y + 75, 6, 0, Math.PI * 2);
+    this.ctx.arc(p.x + 77, p.y + 75, 6, 0, Math.PI * 2);
+    this.ctx.fill();
 }
 
 /**
- * Draw aide for mobile - simple representation  
+ * Better aide fallback (looks more like original)
  */
-drawMobileAide() {
+drawDetailedAideFallback() {
     const a = this.aide;
+    const y = a.y + (a.bounceY || 0);
     
-    // Simple colored rectangle for aide
-    this.ctx.fillStyle = a.shield ? '#00FFFF' : '#4169E1';
-    this.ctx.fillRect(a.x, a.y + (a.bounceY || 0), 60, 80);
+    // Body (uniform/shirt) - color changes based on shield state
+    this.ctx.fillStyle = a.shield ? '#87CEEB' : '#4169E1';
+    this.ctx.fillRect(a.x, y + 25, 60, 55);
     
-    // Simple shield indicator
+    // Head (skin tone)
+    this.ctx.fillStyle = '#DEB887';
+    this.ctx.beginPath();
+    this.ctx.arc(a.x + 30, y + 15, 15, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    // Hair
+    this.ctx.fillStyle = '#2F4F4F';
+    this.ctx.beginPath();
+    this.ctx.arc(a.x + 30, y + 5, 17, 0, Math.PI);
+    this.ctx.fill();
+    
+    // Eyes (alert expression)
+    this.ctx.fillStyle = '#000';
+    this.ctx.beginPath();
+    this.ctx.arc(a.x + 25, y + 13, 2, 0, Math.PI * 2);
+    this.ctx.arc(a.x + 35, y + 13, 2, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    // Mouth (determined expression)
+    this.ctx.strokeStyle = '#000';
+    this.ctx.lineWidth = 1;
+    this.ctx.beginPath();
+    this.ctx.moveTo(a.x + 27, y + 20);
+    this.ctx.lineTo(a.x + 33, y + 20);
+    this.ctx.stroke();
+    
+    // Arms (positioned for defense)
+    this.ctx.fillStyle = '#DEB887';
+    this.ctx.fillRect(a.x - 5, y + 30, 10, 30);
+    this.ctx.fillRect(a.x + 55, y + 30, 10, 30);
+    
+    // Hands (fists ready for action)
+    this.ctx.fillStyle = '#DEB887';
+    this.ctx.beginPath();
+    this.ctx.arc(a.x + 0, y + 60, 5, 0, Math.PI * 2);
+    this.ctx.arc(a.x + 60, y + 60, 5, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    // Special shield-state indicator
     if (a.shield) {
+        // Add energy lines around the aide
         this.ctx.strokeStyle = '#00FFFF';
         this.ctx.lineWidth = 2;
-        this.ctx.beginPath();
-        this.ctx.arc(a.x + 30, a.y + 40 + (a.bounceY || 0), 35, 0, Math.PI * 2);
-        this.ctx.stroke();
-    }
-}
-
-/**
- * Draw projectiles for mobile - simple representation
- */
-drawMobileProjectiles() {
-    // Simple circles for projectiles
-    if (this.projectiles && this.projectiles.length > 0) {
-        this.projectiles.forEach(proj => {
-            this.ctx.fillStyle = proj.color || '#FF0000';
+        for (let i = 0; i < 4; i++) {
+            const angle = (i / 4) * Math.PI * 2;
+            const startX = a.x + 30 + Math.cos(angle) * 25;
+            const startY = y + 40 + Math.sin(angle) * 25;
+            const endX = a.x + 30 + Math.cos(angle) * 35;
+            const endY = y + 40 + Math.sin(angle) * 35;
+            
             this.ctx.beginPath();
-            this.ctx.arc(proj.x, proj.y, Math.max(proj.size/2, 8), 0, Math.PI * 2);
-            this.ctx.fill();
-        });
+            this.ctx.moveTo(startX, startY);
+            this.ctx.lineTo(endX, endY);
+            this.ctx.stroke();
+        }
     }
 }
 
