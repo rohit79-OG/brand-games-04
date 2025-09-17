@@ -6793,6 +6793,12 @@ resetAtmosphericParticle(particle) {
  * Fallback procedural crowd
  */
 drawProceduralCrowd() {
+    // MOBILE: Skip procedural crowd entirely
+    if (this.isMobile) {
+        console.log('🚫 drawProceduralCrowd() - SKIPPED ON MOBILE for performance');
+        return;
+    }
+    
     console.log('🤖 drawProceduralCrowd() is being called instead');
     const now = Date.now();
     if (!this.crowdCache || now - this.lastCrowdUpdate > 100) {
@@ -6803,15 +6809,22 @@ drawProceduralCrowd() {
     this.drawCachedCrowd();
 }
 
+
 /**
  * Draw animated background crowd layer
  */
 drawBackgroundCrowd() {
-    // CRITICAL FIX: Multiple exit conditions including health check
+    // MOBILE: Skip crowd rendering entirely to prevent freezing
+    if (this.isMobile) {
+        console.log('🚫 drawBackgroundCrowd() - SKIPPED ON MOBILE for performance');
+        return;
+    }
+    
+    // CRITICAL FIX: Multiple exit conditions including direct health check
     if (this.currentState === this.gameStates.GAME_OVER || 
         this.currentState === this.gameStates.LOADING ||
         this.currentState === this.gameStates.START_SCREEN ||
-        this.politicianHealth <= 0 ||  // NEW: Direct health check
+        this.politicianHealth <= 0 ||  // NEW: Direct health check prevents final frame issue
         !this.isRunning) {             // NEW: Running state check
         console.log('🚫 drawBackgroundCrowd() - Blocked: State:', this.currentState, 'Health:', this.politicianHealth, 'Running:', this.isRunning);
         return;
@@ -6866,6 +6879,12 @@ drawBackgroundCrowd() {
  * Draw animated foreground crowd layer
  */
 drawForegroundCrowd() {
+    // MOBILE: Skip foreground crowd entirely
+    if (this.isMobile) {
+        console.log('🚫 drawForegroundCrowd() - SKIPPED ON MOBILE for performance');
+        return;
+    }
+    
     // CRITICAL FIX: Multiple exit conditions including direct health check
     if (this.currentState === this.gameStates.GAME_OVER || 
         this.currentState === this.gameStates.LOADING ||
@@ -6887,6 +6906,7 @@ drawForegroundCrowd() {
         return;
     }
     
+    // Rest of your existing foreground crowd code...
     const groundY = this.gameHeight * 0.65;
     const crowdStartY = groundY + 15;
     
@@ -6988,11 +7008,18 @@ drawCloud(x, y, size) {
      * Update crowd cache for performance
      */
     updateCrowdCache() {
-        const villagerColors = [
-            '#FF6B35', '#4A90E2', '#50E3C2', '#F5A623', '#BD10E0', 
-            '#D0021B', '#9B59B6', '#E67E22', '#27AE60', '#3498DB',
-            '#FF5722', '#2196F3', '#4CAF50', '#FF9800', '#E91E63'
-        ];
+    // MOBILE: Skip crowd cache generation
+    if (this.isMobile) {
+        this.crowdCache = [];
+        return;
+    }
+    
+    // Continue crowd cache generation 
+    const villagerColors = [
+        '#FF6B35', '#4A90E2', '#50E3C2', '#F5A623', '#BD10E0', 
+        '#D0021B', '#9B59B6', '#E67E22', '#27AE60', '#3498DB',
+        '#FF5722', '#2196F3', '#4CAF50', '#FF9800', '#E91E63'
+    ];
         
         this.crowdCache = [];
         const groundY = this.gameHeight * 0.65;
@@ -7151,8 +7178,10 @@ updateCrowdAnimations(deltaTime) {
      * Draw cached crowd
      */
     drawCachedCrowd() {
-        if (!this.crowdCache) return;
-        
+       // MOBILE: Skip cached crowd rendering
+    if (this.isMobile || !this.crowdCache) {
+        return;
+    }
         const time = Date.now() * 0.0008;
         
         this.crowdCache.forEach(villager => {
@@ -8697,7 +8726,37 @@ drawSplatterDrip(x, y, size) {
     /**
      * Initialize sprite system
      */
-    initSpriteSystem() {
+   initSpriteSystem() {
+    // Define sprite configs based on device type
+    if (this.isMobile) {
+        // Mobile: Simplified sprite configuration
+        this.spriteConfigs = {
+            politician: {
+                src: 'https://assets.codepen.io/t-24779/politics-sprite-sheet-v2.png',
+                frameWidth: 768,     // Half resolution
+                frameHeight: 1024,   // Keep height for aspect ratio
+                totalFrames: 1,      // Use only first frame
+                layout: 'horizontal',
+                scale: 0.6           // Scale down for mobile
+            },
+            aide: {
+                src: 'https://assets.codepen.io/t-24779/aide-sprite-sheet-v2.png',
+                frameWidth: 384,     // Keep original width (already smaller)
+                frameHeight: 600,    // Use only upper portion
+                totalFrames: 1,      // Single frame only
+                layout: 'vertical',
+                scale: 0.7           // Scale down for mobile
+            }
+        };
+
+        this.currentAnimations = {
+            politician: { name: 'idle', frame: 0, timer: 0 },
+            aide: { name: 'idle', frame: 0, timer: 0 }
+        };
+
+        console.log('Mobile sprite system initialized with optimizations');
+    } else {
+        // Desktop: Full sprite configuration (your existing config)
         this.spriteConfigs = {
             politician: {
                 src: 'https://assets.codepen.io/t-24779/politics-sprite-sheet-v2.png',
@@ -8720,15 +8779,18 @@ drawSplatterDrip(x, y, size) {
             aide: { name: 'idle', frame: 0, timer: 0 }
         };
 
-        this.spriteSystem = {
-            loaded: false,
-            images: {},
-            animations: {},
-            currentFrames: { politician: 0, aide: 0 }
-        };
-
-        this.loadSprites();
+        console.log('Desktop sprite system initialized with full features');
     }
+
+    this.spriteSystem = {
+        loaded: false,
+        images: {},
+        animations: {},
+        currentFrames: { politician: 0, aide: 0 }
+    };
+
+    this.loadSprites();
+}
 
     /**
      * Load sprite images
@@ -8768,49 +8830,70 @@ drawSplatterDrip(x, y, size) {
      */
    drawCharacterSprite(spriteName, x, y, width, height, animation = 'idle') {
     const image = this.spriteSystem.images[spriteName];
-    const animations = this.spriteSystem.animations[spriteName];
+    const config = this.spriteConfigs[spriteName];
     
-    if (!image || !animations) {
+    if (!image || !config) {
         return false;
     }
-    
-    let animationFrames = animations[animation] || animations['idle'];
-    if (!animationFrames || animationFrames.length === 0) {
-        return false;
+
+    // Mobile: Use only first frame, no animation
+    let frameIndex = 0;
+    if (!this.isMobile && this.spriteSystem.animations[spriteName]) {
+        const animationFrames = this.spriteSystem.animations[spriteName][animation] || 
+                               this.spriteSystem.animations[spriteName]['idle'];
+        if (animationFrames && animationFrames.length > 0) {
+            const currentFrame = this.spriteSystem.currentFrames[spriteName] || 0;
+            frameIndex = currentFrame % animationFrames.length;
+        }
     }
+
+    // Calculate frame position
+    const frameWidth = config.frameWidth;
+    const frameHeight = config.frameHeight;
     
-    const currentFrame = this.spriteSystem.currentFrames[spriteName] || 0;
-    const frame = animationFrames[currentFrame % animationFrames.length];
+    let frameX = 0;
+    let frameY = 0;
     
+    if (config.layout === 'horizontal') {
+        frameX = frameIndex * frameWidth;
+        frameY = 0;
+    } else if (config.layout === 'vertical') {
+        frameX = 0;
+        frameY = frameIndex * frameHeight;
+    }
+
+    // Apply mobile scaling
+    const renderWidth = this.isMobile ? width * (config.scale || 0.7) : width;
+    const renderHeight = this.isMobile ? height * (config.scale || 0.7) : height;
+
     this.ctx.save();
     
-    // SPRITE FLIPPING FOR AIDE:
-    if (spriteName === 'aide' && this.aide.spriteFlipped) {
-        this.ctx.translate(x + width, y);
-        this.ctx.scale(-1, 1);
-        this.ctx.drawImage(
-            image,
-            frame.x, frame.y, frame.width, frame.height,
-            0, 0, width, height
-        );
-    } else if (spriteName === 'politician') {
-        this.ctx.drawImage(
-            image,
-            Math.floor(frame.x), Math.floor(frame.y), 
-            Math.floor(frame.width), Math.floor(frame.height),
-            Math.floor(x), Math.floor(y), 
-            Math.floor(width), Math.floor(height)
-        );
-    } else {
-        this.ctx.drawImage(
-            image,
-            frame.x, frame.y, frame.width, frame.height,
-            x, y, width, height
-        );
+    try {
+        // Handle sprite flipping for aide
+        if (spriteName === 'aide' && this.aide.spriteFlipped) {
+            this.ctx.translate(x + renderWidth, y);
+            this.ctx.scale(-1, 1);
+            this.ctx.drawImage(
+                image,
+                frameX, frameY, frameWidth, frameHeight,
+                0, 0, renderWidth, renderHeight
+            );
+        } else {
+            this.ctx.drawImage(
+                image,
+                frameX, frameY, frameWidth, frameHeight,
+                x, y, renderWidth, renderHeight
+            );
+        }
+        
+        this.ctx.restore();
+        return true;
+        
+    } catch (error) {
+        console.warn(`Sprite rendering error for ${spriteName}:`, error);
+        this.ctx.restore();
+        return false;
     }
-    
-    this.ctx.restore();
-    return true;
 }
 
     /**
@@ -8823,33 +8906,45 @@ drawSplatterDrip(x, y, size) {
      * @returns {Array} Frame array
      */
     extractSpriteFrames(imageName, frameWidth, frameHeight, totalFrames, layout = 'horizontal') {
-        const image = this.spriteSystem.images[imageName];
-        if (!image) return [];
-        
-        const frames = [];
-        
-        if (layout === 'horizontal') {
-            for (let i = 0; i < totalFrames; i++) {
-                frames.push({
-                    x: i * frameWidth,
-                    y: 0,
-                    width: frameWidth,
-                    height: frameHeight
-                });
-            }
-        } else if (layout === 'vertical') {
-            for (let i = 0; i < totalFrames; i++) {
-                frames.push({
-                    x: 0,
-                    y: i * frameHeight,
-                    width: frameWidth,
-                    height: frameHeight
-                });
-            }
-        }
-        
+    const image = this.spriteSystem.images[imageName];
+    if (!image) return [];
+    
+    const frames = [];
+    
+    // Mobile: Extract only first frame
+    if (this.isMobile) {
+        frames.push({
+            x: 0,
+            y: 0,
+            width: frameWidth,
+            height: frameHeight
+        });
         return frames;
     }
+    
+    // Desktop: Extract all frames (your existing logic)
+    if (layout === 'horizontal') {
+        for (let i = 0; i < totalFrames; i++) {
+            frames.push({
+                x: i * frameWidth,
+                y: 0,
+                width: frameWidth,
+                height: frameHeight
+            });
+        }
+    } else if (layout === 'vertical') {
+        for (let i = 0; i < totalFrames; i++) {
+            frames.push({
+                x: 0,
+                y: i * frameHeight,
+                width: frameWidth,
+                height: frameHeight
+            });
+        }
+    }
+    
+    return frames;
+}
 
     /**
      * Initialize character animations
@@ -8901,27 +8996,52 @@ drawSplatterDrip(x, y, size) {
      * @param {number} deltaTime - Time delta
      */
     updateCharacterAnimations(deltaTime = 0.016) {
-        if (!this.characterAnimTimers) {
-            this.characterAnimTimers = {
-                politician: 0,
-                aide: 0
-            };
+    // Mobile: Skip complex animations
+    if (this.isMobile) {
+        // Keep frame counters at 0 for single frame sprites
+        this.spriteSystem.currentFrames = {
+            politician: 0,
+            aide: 0
+        };
+        
+        // Simplified expressions without animation
+        if (this.aide.shield) {
+            this.aide.expression = 'focused';
+        } else {
+            this.aide.expression = 'determined';
         }
         
-        this.characterAnimTimers.politician += deltaTime;
-        if (this.characterAnimTimers.politician >= 0.4) {
-            this.spriteSystem.currentFrames.politician = 
-                (this.spriteSystem.currentFrames.politician + 1) % 2;
-            this.characterAnimTimers.politician = 0;
+        if (this.politicianHealth < 50) {
+            this.politician.expression = 'worried';
+        } else {
+            this.politician.expression = 'speaking';
         }
         
-        this.characterAnimTimers.aide += deltaTime;
-        if (this.characterAnimTimers.aide >= 0.2) {
-            this.spriteSystem.currentFrames.aide = 
-                (this.spriteSystem.currentFrames.aide + 1) % 4;
-            this.characterAnimTimers.aide = 0;
-        }
-        
+        return;
+    }
+    
+    // Desktop: Full animation system (your existing code)
+    if (!this.characterAnimTimers) {
+        this.characterAnimTimers = {
+            politician: 0,
+            aide: 0
+        };
+    }
+    
+    this.characterAnimTimers.politician += deltaTime;
+    if (this.characterAnimTimers.politician >= 0.4) {
+        this.spriteSystem.currentFrames.politician = 
+            (this.spriteSystem.currentFrames.politician + 1) % 2;
+        this.characterAnimTimers.politician = 0;
+    }
+    
+    this.characterAnimTimers.aide += deltaTime;
+    if (this.characterAnimTimers.aide >= 0.2) {
+        this.spriteSystem.currentFrames.aide = 
+            (this.spriteSystem.currentFrames.aide + 1) % 4;
+        this.characterAnimTimers.aide = 0;
+    }
+    
         this.aide.armAnimation += deltaTime * 3;
         this.politician.armAnimation += deltaTime * 2;
         
