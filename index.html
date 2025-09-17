@@ -3058,6 +3058,13 @@ class StainSlayerGame {
  */
 initAtmosphericParticles() {
     this.atmosphericSystem.particles = [];
+
+     // ADD THIS CHECK BEFORE THE LOOP:
+    if (this.isMobile) {
+        this.atmosphericSystem.maxParticles = 0;
+        console.log('Mobile: Atmospheric particles disabled');
+        return;
+    }
     
     // Create initial dust particles
     for (let i = 0; i < this.atmosphericSystem.maxParticles; i++) {
@@ -3227,91 +3234,72 @@ setupEventListeners() {
         this.mouse.y = (e.clientY - rect.top) * (this.canvas.height / rect.height);
     });
     
-    // SAFER TOUCH EVENTS - Replace your existing touch handlers with these:
-    let touchStartPos = { x: 0, y: 0 };
-    let touchMoveThreshold = 30;
-    let isMoving = false;
-    let touchActive = false; // Prevent overlapping touches
-    
+    // SIMPLIFIED MOBILE TOUCH HANDLERS
+    let touchActive = false;
+    let lastTouchX = 0;
+    let lastTouchY = 0;
+
     this.canvas.addEventListener('touchstart', (e) => {
         try {
             e.preventDefault();
             e.stopPropagation();
             
-            // Only handle single touch
-            if (e.touches.length !== 1 || touchActive) {
-                return;
-            }
+            if (e.touches.length !== 1 || touchActive) return;
             
             touchActive = true;
             const touch = e.touches[0];
             const rect = this.canvas.getBoundingClientRect();
             
-            // Store touch start position
-            touchStartPos.x = touch.clientX;
-            touchStartPos.y = touch.clientY;
-            isMoving = false;
+            lastTouchX = touch.clientX;
+            lastTouchY = touch.clientY;
             
-            // Update mouse position for shield activation
+            // Simple position update
             this.mouse.x = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
             this.mouse.y = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
             
-            // Activate shield on touch
+            // Always activate shield on touch
             this.activateShield();
             
-            // Remove console.log to improve mobile performance
-            // console.log('Touch shield activated at:', this.mouse.x.toFixed(0), this.mouse.y.toFixed(0));
-            
         } catch (error) {
-            console.warn('Touch start error:', error);
             touchActive = false;
         }
     }, { passive: false });
-    
+
     this.canvas.addEventListener('touchmove', (e) => {
         try {
             e.preventDefault();
             e.stopPropagation();
             
-            // Only handle single touch and if touch is active
-            if (e.touches.length !== 1 || !touchActive) {
-                return;
-            }
+            if (e.touches.length !== 1 || !touchActive) return;
             
             const touch = e.touches[0];
             const rect = this.canvas.getBoundingClientRect();
             
-            // Update mouse position continuously
+            // Update mouse position for shield following
             this.mouse.x = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
             this.mouse.y = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
             
-            // Calculate movement from start position
-            const deltaX = touch.clientX - touchStartPos.x;
-            const deltaY = touch.clientY - touchStartPos.y;
+            // SIMPLE movement detection - no complex calculations
+            const deltaX = touch.clientX - lastTouchX;
+            const deltaY = touch.clientY - lastTouchY;
             
-            // Clear all movement keys first
+            // Clear all movement first
             this.keys['KeyW'] = this.keys['ArrowUp'] = false;
             this.keys['KeyS'] = this.keys['ArrowDown'] = false;
             this.keys['KeyA'] = this.keys['ArrowLeft'] = false;
             this.keys['KeyD'] = this.keys['ArrowRight'] = false;
             
-            // FIXED: Prioritize the dominant direction to prevent conflicts
-            const absDeltaX = Math.abs(deltaX);
-            const absDeltaY = Math.abs(deltaY);
-            
-            if (absDeltaX > touchMoveThreshold || absDeltaY > touchMoveThreshold) {
-                isMoving = true;
-                
-                // Apply movement based on dominant direction only
-                if (absDeltaX > absDeltaY) {
-                    // Horizontal movement dominates
+            // Only set movement if significant change
+            if (Math.abs(deltaX) > 20 || Math.abs(deltaY) > 20) {
+                if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                    // Horizontal movement
                     if (deltaX < 0) {
                         this.keys['KeyA'] = this.keys['ArrowLeft'] = true;
                     } else {
                         this.keys['KeyD'] = this.keys['ArrowRight'] = true;
                     }
                 } else {
-                    // Vertical movement dominates
+                    // Vertical movement
                     if (deltaY < 0) {
                         this.keys['KeyW'] = this.keys['ArrowUp'] = true;
                     } else {
@@ -3321,15 +3309,14 @@ setupEventListeners() {
             }
             
         } catch (error) {
-            console.warn('Touch move error:', error);
-            // Clear movement on error
+            // Clear movement on any error
             this.keys['KeyW'] = this.keys['ArrowUp'] = false;
             this.keys['KeyS'] = this.keys['ArrowDown'] = false;
             this.keys['KeyA'] = this.keys['ArrowLeft'] = false;
             this.keys['KeyD'] = this.keys['ArrowRight'] = false;
         }
     }, { passive: false });
-    
+
     this.canvas.addEventListener('touchend', (e) => {
         try {
             e.preventDefault();
@@ -3337,21 +3324,14 @@ setupEventListeners() {
             
             touchActive = false;
             
-            // Clear all movement keys when touch ends
+            // Clear ALL movement keys immediately
             this.keys['KeyW'] = this.keys['ArrowUp'] = false;
             this.keys['KeyS'] = this.keys['ArrowDown'] = false;
             this.keys['KeyA'] = this.keys['ArrowLeft'] = false;
             this.keys['KeyD'] = this.keys['ArrowRight'] = false;
             
-            isMoving = false;
-            
-            // Remove console.log for mobile performance
-            // console.log('Touch movement cleared');
-            
         } catch (error) {
-            console.warn('Touch end error:', error);
             touchActive = false;
-            isMoving = false;
         }
     }, { passive: false });
     
@@ -3359,7 +3339,6 @@ setupEventListeners() {
     this.canvas.addEventListener('touchcancel', (e) => {
         try {
             touchActive = false;
-            isMoving = false;
             
             // Clear all movement keys
             this.keys['KeyW'] = this.keys['ArrowUp'] = false;
@@ -3419,47 +3398,47 @@ setupEventListeners() {
         });
     }
         
-if (this.isMobile) {
-    // Handle page visibility changes (when user switches tabs/apps)
-    document.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
-            console.log('Page hidden - stopping game loop');
+    if (this.isMobile) {
+        // Handle page visibility changes (when user switches tabs/apps)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                console.log('Page hidden - stopping game loop');
+                this.isRunning = false;
+                this.stopGameLoop();
+                
+                // Clear all inputs when app loses focus
+                this.keys = {};
+                
+            } else if (this.currentState === this.gameStates.GAMEPLAY) {
+                console.log('Page visible - game was paused');
+                // Don't auto-restart, let user tap to continue
+            }
+        });
+        
+        // Handle window focus/blur
+        window.addEventListener('blur', () => {
+            console.log('Window blur - clearing input states');
+            this.keys = {};
+        });
+        
+        window.addEventListener('focus', () => {
+            console.log('Window focus - resetting input states');
+            this.keys = {};
+        });
+        
+        // Handle page hide (iOS Safari specific)
+        window.addEventListener('pagehide', () => {
+            console.log('Page hide - emergency stop');
             this.isRunning = false;
             this.stopGameLoop();
-            
-            // Clear all inputs when app loses focus
+        });
+        
+        // Handle page show (when returning from background)
+        window.addEventListener('pageshow', () => {
+            console.log('Page show - clearing states');
             this.keys = {};
-            
-        } else if (this.currentState === this.gameStates.GAMEPLAY) {
-            console.log('Page visible - game was paused');
-            // Don't auto-restart, let user tap to continue
-        }
-    });
-    
-    // Handle window focus/blur
-    window.addEventListener('blur', () => {
-        console.log('Window blur - clearing input states');
-        this.keys = {};
-    });
-    
-    window.addEventListener('focus', () => {
-        console.log('Window focus - resetting input states');
-        this.keys = {};
-    });
-    
-    // Handle page hide (iOS Safari specific)
-    window.addEventListener('pagehide', () => {
-        console.log('Page hide - emergency stop');
-        this.isRunning = false;
-        this.stopGameLoop();
-    });
-    
-    // Handle page show (when returning from background)
-    window.addEventListener('pageshow', () => {
-        console.log('Page show - clearing states');
-        this.keys = {};
-    });
-}
+        });
+    }
 }
     /**
      * Load game assets with progress tracking
@@ -4517,16 +4496,18 @@ startGameLoop() {
                 return;
             }
             
-            // MOBILE: Skip frames more aggressively 
-            if (this.isMobile) {
-                frameSkipCounter++;
-                // Skip 3 out of 4 frames (run at ~15fps instead of 60fps)
-                if (frameSkipCounter < 4) {
-                    this.gameLoopId = requestAnimationFrame(gameLoop);
-                    return;
-                }
-                frameSkipCounter = 0;
-            }
+            // NEW TIME-BASED THROTTLING (replace with this):
+if (this.isMobile) {
+    const now = performance.now();
+    if (!this.lastMobileFrame) this.lastMobileFrame = 0;
+    
+    // Throttle to max 20 FPS (50ms intervals)
+    if (now - this.lastMobileFrame < 50) {
+        this.gameLoopId = requestAnimationFrame(gameLoop);
+        return;
+    }
+    this.lastMobileFrame = now;
+}
             
             // CRITICAL: Throttle update frequency on mobile
             const now = performance.now();
@@ -4697,24 +4678,24 @@ stopGameLoop() {
   update(deltaTime) {
     if (this.currentState !== this.gameStates.GAMEPLAY) return;
     
-    // MOBILE: Skip expensive systems entirely
+    // MOBILE: Run memory optimization every 30 frames instead of 60
     if (this.isMobile) {
-        // Run memory optimization every 60 frames (~4 seconds at 15fps)
         if (!this.mobileFrameCount) this.mobileFrameCount = 0;
         this.mobileFrameCount++;
         
-        if (this.mobileFrameCount % 60 === 0) {
+        // CHANGE THIS: More frequent cleanup - every 30 frames instead of 60
+        if (this.mobileFrameCount % 30 === 0) {
             this.optimizeMemoryForMobile();
         }
         
-        // Skip expensive atmospheric and screen effects
-        deltaTime = Math.min(deltaTime, 0.033); // Cap deltaTime
+        // Cap deltaTime more aggressively
+        deltaTime = Math.min(deltaTime, 0.05); // Changed from 0.033 to 0.05
     }
     
     const timeMultiplier = this.activePowers.slowmo > 0 ? 0.5 : 1.0; // Less dramatic slowmo
     const adjustedDelta = deltaTime * timeMultiplier;
 
-        // Update politician reaction timer
+    // Update politician reaction timer
     if (this.politician.reactionTimer > 0) {
         this.politician.reactionTimer -= deltaTime * 1000;
         if (this.politician.reactionTimer <= 0) {
@@ -4725,31 +4706,31 @@ stopGameLoop() {
 
     // Update message bubble
     if (this.politician.messageBubble.isVisible) {
-    this.politician.messageBubble.timer -= deltaTime * 1000;
-    this.politician.messageBubble.fadeIn = Math.min(1, this.politician.messageBubble.fadeIn + deltaTime * 4);
-    
-    if (this.politician.messageBubble.timer <= 0) {
-        this.politician.messageBubble.isVisible = false;
-    }
-}
+        this.politician.messageBubble.timer -= deltaTime * 1000;
+        this.politician.messageBubble.fadeIn = Math.min(1, this.politician.messageBubble.fadeIn + deltaTime * 4);
         
-        this.updatePowerUps(deltaTime);
-        this.updateCharacterAnimations(deltaTime);
-        this.updateCrowdAnimations(deltaTime);
-        this.updateAide(adjustedDelta);
-        this.updateProjectiles(adjustedDelta);
-        this.updateProjectileEffects(deltaTime);
-        this.updateParticles(adjustedDelta);
-        this.updateTimers(deltaTime);
-        this.updateCameraShake(deltaTime);
-        this.updateScreenEffects(deltaTime);
-        this.updateMessageSystem(deltaTime);
-        this.updateReactionSystem(deltaTime);
-        this.updateAtmosphericSystem(deltaTime);
-        this.checkCollisions();
-        this.updateUI();
+        if (this.politician.messageBubble.timer <= 0) {
+            this.politician.messageBubble.isVisible = false;
+        }
+    }
+        
+    this.updatePowerUps(deltaTime);
+    this.updateCharacterAnimations(deltaTime);
+    this.updateCrowdAnimations(deltaTime);
+    this.updateAide(adjustedDelta);
+    this.updateProjectiles(adjustedDelta);
+    this.updateProjectileEffects(deltaTime);
+    this.updateParticles(adjustedDelta);
+    this.updateTimers(deltaTime);
+    this.updateCameraShake(deltaTime);
+    this.updateScreenEffects(deltaTime);
+    this.updateMessageSystem(deltaTime);
+    this.updateReactionSystem(deltaTime);
+    this.updateAtmosphericSystem(deltaTime);
+    this.checkCollisions();
+    this.updateUI();
 
-        // ADD THIS BLOCK - Mobile memory management
+    // ADD THIS BLOCK - Mobile memory management
     if (this.isMobile) {
         // Increment frame counter
         if (!this.renderFrameId) this.renderFrameId = 0;
@@ -4760,47 +4741,58 @@ stopGameLoop() {
             this.optimizeMemoryForMobile();
         }
     }
-    }
+}
   
 //AGGRESSIVE MOBILE MEMORY MANAGEMENT
 optimizeMemoryForMobile() {
     if (!this.isMobile) return;
     
-    // EXTREME particle reduction
-    if (this.particles.length > 1) {
-        this.particles.splice(0, this.particles.length - 1); // Keep only 1 particle
-    }
+    // NUCLEAR memory cleanup - more aggressive than current
     
-    if (this.trailParticles.length > 0) {
-        this.trailParticles = []; // Remove ALL trail particles
-    }
+    // 1. Eliminate ALL particles immediately
+    this.particles = [];
+    this.trailParticles = [];
     
-    // EXTREME projectile limiting  
+    // 2. Limit projectiles to absolute minimum
     if (this.projectiles.length > 1) {
-        this.projectiles.splice(0, this.projectiles.length - 1); // Keep only 1 projectile
+        this.projectiles = [this.projectiles[this.projectiles.length - 1]]; // Keep only newest
     }
     
-    // Clear ALL analytics to free memory
+    // 3. Clear atmospheric particles completely
+    if (this.atmosphericSystem && this.atmosphericSystem.particles) {
+        this.atmosphericSystem.particles = [];
+    }
+    
+    // 4. Clear all analytics on mobile to free memory
     if (this.analytics) {
-        this.analytics.projectileAnalytics = [];
-        this.analytics.reactionTimeData = [];
-        this.analytics.defensePatterns = [];
+        this.analytics.projectileAnalytics = this.analytics.projectileAnalytics.slice(-5); // Keep only last 5
+        this.analytics.reactionTimeData = this.analytics.reactionTimeData.slice(-10); // Keep only last 10
+        this.analytics.defensePatterns = this.analytics.defensePatterns.slice(-10); // Keep only last 10
     }
     
-    // Clear message system
+    // 5. Clear message system immediately
     if (this.messageSystem) {
         this.messageSystem.isActive = false;
         this.messageSystem.currentMessage = '';
+        this.messageSystem.messageTimer = 0;
     }
     
-    // Force garbage collection
-    if (window.gc) {
+    // 6. Limit politician stains
+    if (this.politician && this.politician.stains && this.politician.stains.length > 3) {
+        this.politician.stains = this.politician.stains.slice(-3); // Keep only last 3
+    }
+    
+    // 7. Clear any cached data
+    this.crowdCache = null;
+    
+    // 8. Force garbage collection if available
+    if (window.gc && typeof window.gc === 'function') {
         try {
             window.gc();
         } catch (e) {}
     }
     
-    console.log('Ultra-aggressive mobile cleanup performed');
+    console.log('MOBILE: Nuclear memory cleanup performed');
 }
 
     /**
@@ -5514,20 +5506,21 @@ updateComboEffects(deltaTime) {
  */
 blockProjectile(projectile) {
     if (this.audioManager) {
-    // Play projectile-specific blocking sound
-    this.audioManager.playProjectileSound(projectile.type, projectile.x, {
-        volume: 0.8,
-        intensity: 1.0 + (Math.random() - 0.5) * 0.2
-    });
-    
-    // Elimination sound for successful blocks
-    setTimeout(() => {
-        this.audioManager.playSound('eliminate', {
-            volume: 0.6,
-            pan: (projectile.x / this.gameWidth - 0.5) * 2
+        // Play projectile-specific blocking sound
+        this.audioManager.playProjectileSound(projectile.type, projectile.x, {
+            volume: 0.8,
+            intensity: 1.0 + (Math.random() - 0.5) * 0.2
         });
-    }, 50);
-}
+        
+        // Elimination sound for successful blocks
+        setTimeout(() => {
+            this.audioManager.playSound('eliminate', {
+                volume: 0.6,
+                pan: (projectile.x / this.gameWidth - 0.5) * 2
+            });
+        }, 50);
+    }
+    
     // Message system integration
     this.messageSystem.comboCount++;
     this.messageSystem.lastComboTime = Date.now();
@@ -5582,11 +5575,11 @@ blockProjectile(projectile) {
         this.messageSystem.comboCount = 0;
 
         // AUDIO Integration
-    if (this.audioManager) {
-        this.audioManager.playSound('combo', {
-            volume: 0.8
-        });
-    }
+        if (this.audioManager) {
+            this.audioManager.playSound('combo', {
+                volume: 0.8
+            });
+        }
         
         // Trigger victory pose for impressive blocks
         this.reactionSystem.aide.victoryPose = true;
@@ -5601,32 +5594,29 @@ blockProjectile(projectile) {
        this.analytics.trackProjectileResolution(projectile.analyticsId, 'blocked', defenseMethod);
     }
     
-    // MOBILE OPTIMIZED PARTICLE CREATION
-    const particleCount = this.isMobile ? 
-        Math.floor(1 + Math.random() * 2) :  // Only 1-3 particles on mobile
-        Math.floor((15 + Math.random() * 8) * intensity); // Original count on desktop
+    // MOBILE OPTIMIZED PARTICLE CREATION - Zero particles on mobile for maximum performance
+    const particleCount = this.isMobile ? 0 : Math.floor((15 + Math.random() * 8) * intensity);
     
     console.log(`Creating ${particleCount} impact particles (mobile: ${this.isMobile})`);
     
+    // Only create particles on desktop
     for (let i = 0; i < particleCount; i++) {
         const angle = (Math.PI * 2 / particleCount) * i + Math.random() * 0.5;
-        const speed = this.isMobile ? 
-            80 + Math.random() * 40 :  // Slower particles on mobile
-            200 + Math.random() * 150;
+        const speed = 200 + Math.random() * 150;
         
         this.particles.push({
             x: projectile.x + (Math.random() - 0.5) * 5,
             y: projectile.y + (Math.random() - 0.5) * 5,
             vx: Math.cos(angle) * speed,
             vy: Math.sin(angle) * speed - 50,
-            life: this.isMobile ? 0.5 : 1.5 + Math.random() * 0.8,
-            maxLife: this.isMobile ? 0.5 : 2.0,
-            size: this.isMobile ? 2 + Math.random() * 2 : 4 + Math.random() * 8,
+            life: 1.5 + Math.random() * 0.8,
+            maxLife: 2.0,
+            size: 4 + Math.random() * 8,
             color: colors.primary,
             type: 'impact',
             projectileType: projectile.type,
             alpha: 1.0,
-            sparkle: this.isMobile ? false : Math.random() < 0.3, // No sparkle on mobile
+            sparkle: Math.random() < 0.3,
             spin: projectile.type === 'stone' || projectile.type === 'bottle' ? (Math.random() - 0.5) * 0.4 : 0,
             rotation: 0
         });
@@ -6225,20 +6215,15 @@ updateAtmosphericSystem(deltaTime) {
  * Main render function
  */
 render() {
-    // MOBILE: Skip render if conditions aren't perfect
-    if (this.currentState !== this.gameStates.GAMEPLAY) return;
-    
+    // MOBILE: Use completely different render path
     if (this.isMobile) {
-        // Skip render if browser is busy
-        if (performance.now() - this.lastRenderTime < 50) return; // Minimum 50ms between renders
-        this.lastRenderTime = performance.now();
-        
-        // Clear canvas more aggressively
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.fillStyle = '#87CEEB';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.mobileRender();
+        return;
     }
 
+    // DESKTOP: Skip render if conditions aren't perfect
+    if (this.currentState !== this.gameStates.GAMEPLAY) return;
+    
     // CRITICAL FIX: Immediate exit for problematic states
     // This prevents any rendering during game over transitions
     if (this.currentState === this.gameStates.GAME_OVER) {
@@ -6374,6 +6359,36 @@ render() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.canvas.style.display = 'none';
     }
+}
+
+// ADD this new mobile render method AFTER the render() method:
+mobileRender() {
+    // CRITICAL: Exit immediately if not in gameplay
+    if (this.currentState !== this.gameStates.GAMEPLAY) {
+        this.canvas.style.display = 'none';
+        return;
+    }
+
+    // Simple performance check
+    const now = performance.now();
+    if (this.lastMobileRender && now - this.lastMobileRender < 50) return; // Max 20 FPS
+    this.lastMobileRender = now;
+
+    // Ensure canvas is visible for mobile gameplay
+    this.canvas.style.display = 'block';
+    this.canvas.style.visibility = 'visible';
+    this.canvas.style.opacity = '1';
+
+    // Clear canvas efficiently
+    this.ctx.fillStyle = '#87CEEB'; // Sky blue background
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    // Only draw essential game elements
+    this.drawMobilePolitician();
+    this.drawMobileAide();
+    this.drawMobileProjectiles();
+    
+    // NO particles, crowds, effects, or complex graphics
 }
 
 /**
