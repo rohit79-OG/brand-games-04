@@ -1419,38 +1419,72 @@ class StainSlayerAudioManager {
     console.log('Tier 2 sounds loading - placeholder implementation');
     //Placeholder for loading additional sound assets 
 }
-    async initializeAudio() {
-        if (this.isInitialized) return;
+   async initializeAudio() {
+    if (this.isInitialized) return;
+    
+    try {
+        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         
-        try {
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        // Mobile-specific audio unlock
+        if (this.audioContext.state === 'suspended') {
+            // Wait for user interaction to unlock audio on mobile
+            const unlockAudio = async () => {
+                try {
+                    await this.audioContext.resume();
+                    console.log('Audio unlocked on mobile');
+                } catch (error) {
+                    console.warn('Failed to unlock audio:', error);
+                }
+                document.removeEventListener('touchstart', unlockAudio);
+                document.removeEventListener('touchend', unlockAudio);
+                document.removeEventListener('click', unlockAudio);
+            };
             
-            if (this.audioContext.state === 'suspended') {
-                await this.audioContext.resume();
-            }
-            
-            this.isInitialized = true;
-            console.log('Professional audio system initialized');
-            
-            // Generate noise buffers for realistic effects
-            this.generateNoiseBuffers();
-            
-        } catch (error) {
-            console.warn('Audio initialization failed:', error);
-            this.isEnabled = false;
+            document.addEventListener('touchstart', unlockAudio, { once: true });
+            document.addEventListener('touchend', unlockAudio, { once: true });
+            document.addEventListener('click', unlockAudio, { once: true });
         }
+        
+        this.isInitialized = true;
+        console.log('Audio system initialized for:', this.game.isMobile ? 'MOBILE' : 'DESKTOP');
+        
+        // Mobile audio optimizations
+        if (this.game.isMobile) {
+            this.maxConcurrentSounds = 4; // Reduce from 12 to 4
+            this.sfxVolume *= 0.6; // Reduce volume
+            this.musicVolume *= 0.5; // Reduce music volume
+            console.log('Mobile audio optimizations applied');
+        }
+        
+        this.generateNoiseBuffers();
+        
+    } catch (error) {
+        console.warn('Audio initialization failed:', error);
+        this.isEnabled = false;
     }
+}
 
     generateNoiseBuffers() {
+    if (!this.audioContext) return;
+    
+    try {
         // Pre-generate noise buffers for realistic sound effects
         this.noiseBuffers = {
             short: this.generateNoiseBuffer(0.1),
             medium: this.generateNoiseBuffer(0.3),
             long: this.generateNoiseBuffer(1.0)
         };
+        console.log('Noise buffers generated successfully');
+    } catch (error) {
+        console.warn('Failed to generate noise buffers:', error);
+        this.noiseBuffers = { short: null, medium: null, long: null };
     }
+}
 
-    generateNoiseBuffer(duration) {
+generateNoiseBuffer(duration) {
+    if (!this.audioContext) return null;
+    
+    try {
         const sampleRate = this.audioContext.sampleRate;
         const bufferSize = sampleRate * duration;
         const buffer = this.audioContext.createBuffer(1, bufferSize, sampleRate);
@@ -1461,7 +1495,11 @@ class StainSlayerAudioManager {
         }
         
         return buffer;
+    } catch (error) {
+        console.warn('Failed to generate single noise buffer:', error);
+        return null;
     }
+}
 
     // PROJECTILE-SPECIFIC IMPACT SOUNDS
     createProjectileImpact(projectileType, intensity = 1.0, panPosition = 0) {
@@ -2834,16 +2872,54 @@ class StainSlayerGame {
      * Initialize game systems
      */
     init() {
-        this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-        this.setupCanvas();
-        this.setupEventListeners();
-        this.initSpriteSystem();
-        this.loadSprites();
-        this.loadAssets();
-        this.initBackgroundAssets();
-        this.initAtmosphericParticles();
+    // Enhanced mobile detection that works with Chrome dev tools
+    const userAgentMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const screenSizeMobile = window.innerWidth < 768;
+    const touchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    
+    // Mobile if ANY of these conditions are true
+    this.isMobile = userAgentMobile || screenSizeMobile || touchDevice;
+    
+    // Force mobile mode for testing (you can remove this later)
+    if (window.location.search.includes('mobile=true')) {
+        this.isMobile = true;
+        console.log('Mobile mode forced via URL parameter');
     }
-
+    
+    this.mobileOptimizations = {
+        maxParticles: this.isMobile ? 20 : 200,
+        maxTrailParticles: this.isMobile ? 10 : 100,
+        maxProjectiles: this.isMobile ? 4 : 15,
+        reducedEffects: this.isMobile,
+        simplifiedRendering: this.isMobile,
+        frameSkip: this.isMobile ? 2 : 1,
+        skipScreenEffects: this.isMobile,
+        skipAtmospheric: this.isMobile,
+        skipEnhancedTrails: this.isMobile,
+        skipAnalytics: this.isMobile
+    };
+    
+    this.renderFrameId = 0;
+    this.lastOptimizationCheck = 0;
+    
+    console.log('Mobile detection results:');
+    console.log('- User Agent Mobile:', userAgentMobile);
+    console.log('- Screen Size Mobile:', screenSizeMobile, '(width:', window.innerWidth, ')');
+    console.log('- Touch Device:', touchDevice);
+    console.log('- Final Mobile Status:', this.isMobile);
+    
+    if (this.isMobile) {
+        console.log('Mobile optimizations applied:', this.mobileOptimizations);
+    }
+    
+    this.setupCanvas();
+    this.setupEventListeners();
+    this.initSpriteSystem();
+    this.loadSprites();
+    this.loadAssets();
+    this.initBackgroundAssets();
+    this.initAtmosphericParticles();
+}
     /**
      * Initialize background assets
      */
@@ -2952,123 +3028,230 @@ createAtmosphericParticle() {
     /**
      * Setup canvas with responsive design
      */
-    setupCanvas() {
-        const resizeCanvas = () => {
-            const containerWidth = window.innerWidth;
-            const containerHeight = window.innerHeight;
+   setupCanvas() {
+    const resizeCanvas = () => {
+        let containerWidth, containerHeight;
+        
+        if (this.isMobile) {
+            // Mobile-specific viewport handling
+            containerWidth = window.innerWidth;
+            containerHeight = window.innerHeight;
             
-            this.canvas.width = containerWidth;
-            this.canvas.height = containerHeight;
-            this.canvas.style.width = containerWidth + 'px';
-            this.canvas.style.height = containerHeight + 'px';
-            
-            this.gameWidth = containerWidth;
-            this.gameHeight = containerHeight;
-            
-            this.canvasScale = 1;
-            this.canvasRect = this.canvas.getBoundingClientRect();
-            
-            const mobileControls = document.getElementById('mobileControls');
-            if (mobileControls) {
-                if (this.isMobile && this.currentState === this.gameStates.GAMEPLAY) {
-                    mobileControls.classList.add('show');
-                } else {
-                    mobileControls.classList.remove('show');
-                }
+            // Handle mobile browser UI variations (address bar, etc.)
+            if (window.visualViewport && window.visualViewport.height) {
+                containerHeight = window.visualViewport.height;
             }
-        };
+            
+            // Ensure viewport meta tag is properly set for mobile
+            let viewport = document.querySelector('meta[name="viewport"]');
+            if (!viewport) {
+                viewport = document.createElement('meta');
+                viewport.name = 'viewport';
+                document.head.appendChild(viewport);
+            }
+            viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
+            
+            console.log('Mobile canvas resized to:', containerWidth, 'x', containerHeight);
+        } else {
+            // Desktop handling
+            containerWidth = window.innerWidth;
+            containerHeight = window.innerHeight;
+        }
         
-        resizeCanvas();
+        this.canvas.width = containerWidth;
+        this.canvas.height = containerHeight;
+        this.canvas.style.width = containerWidth + 'px';
+        this.canvas.style.height = containerHeight + 'px';
         
-        window.addEventListener('resize', () => {
+        this.gameWidth = containerWidth;
+        this.gameHeight = containerHeight;
+        
+        this.canvasScale = 1;
+        this.canvasRect = this.canvas.getBoundingClientRect();
+    };
+    
+    resizeCanvas();
+    
+    // Debounced resize for mobile performance
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
             resizeCanvas();
             this.canvasRect = this.canvas.getBoundingClientRect();
             
             if (this.currentState === this.gameStates.GAMEPLAY) {
                 this.repositionCharacters();
             }
-        });
-        
-        this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-        
-        document.addEventListener('touchmove', (e) => {
-            if (e.target === this.canvas || e.target.closest('#gameContainer')) {
-                e.preventDefault();
-            }
-        }, { passive: false });
-    }
-
+        }, this.isMobile ? 200 : 100); // Longer delay on mobile
+    });
+    
+    // Prevent context menu on long press (mobile)
+    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    
+    // Prevent scrolling when touching the game canvas
+    document.addEventListener('touchmove', (e) => {
+        if (e.target === this.canvas || e.target.closest('#gameContainer')) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+}
     /**
      * Setup event listeners for input handling
      */
-    setupEventListeners() {
-        // Keyboard events
-        window.addEventListener('keydown', (e) => {
-            this.keys[e.code] = true;
-            if (e.code === 'Space') {
-                e.preventDefault();
-                this.activateSlowMotion();
-            }
-        });
-        
-        window.addEventListener('keyup', (e) => {
-            this.keys[e.code] = false;
-        });
-        
-        // Mouse/Touch events
-        this.canvas.addEventListener('mousedown', (e) => {
-            this.activateShield();
-        });
-        
-        this.canvas.addEventListener('touchstart', (e) => {
+   setupEventListeners() {
+    // Keyboard events
+    window.addEventListener('keydown', (e) => {
+        this.keys[e.code] = true;
+        if (e.code === 'Space') {
             e.preventDefault();
-            this.activateShield();
-        });
-        
-        this.canvas.addEventListener('mousemove', (e) => {
-            const rect = this.canvas.getBoundingClientRect();
-            this.mouse.x = (e.clientX - rect.left) * (this.canvas.width / rect.width);
-            this.mouse.y = (e.clientY - rect.top) * (this.canvas.height / rect.height);
-        });
-        
-        // UI button events
-        const startButton = document.getElementById('startButton');
-        const blinkitButton = document.getElementById('blinkitButton');
-        
-        if (startButton) {
-            startButton.addEventListener('click', () => this.startGame());
+            this.activateSlowMotion();
         }
-        
-        if (blinkitButton) {
-            blinkitButton.addEventListener('click', () => this.openBlinkit());
-        }
-
-    // Audio toggle click handler
-const audioToggle = document.getElementById('audioToggle');
-if (audioToggle) {
-    audioToggle.addEventListener('click', (e) => {
+    });
+    
+    window.addEventListener('keyup', (e) => {
+        this.keys[e.code] = false;
+    });
+    
+    // Mouse events
+    this.canvas.addEventListener('mousedown', (e) => {
+        this.activateShield();
+    });
+    
+    this.canvas.addEventListener('mousemove', (e) => {
+        const rect = this.canvas.getBoundingClientRect();
+        this.mouse.x = (e.clientX - rect.left) * (this.canvas.width / rect.width);
+        this.mouse.y = (e.clientY - rect.top) * (this.canvas.height / rect.height);
+    });
+    
+    // Enhanced Touch Events with Movement Controls
+    let touchStartPos = { x: 0, y: 0 };
+    let touchMoveThreshold = 30; // pixels needed to register movement
+    let isMoving = false;
+    
+    this.canvas.addEventListener('touchstart', (e) => {
         e.preventDefault();
         e.stopPropagation();
         
-        if (this.audioManager) {
-            const isMuted = this.audioManager.toggleMute();
-            const audioIcon = audioToggle.querySelector('.audio-icon');
-            
-            if (audioIcon) {
-                audioIcon.textContent = isMuted ? '🔇' : '🔊';
-            }
-            
-            audioToggle.classList.toggle('muted', isMuted);
-            
-            // Play UI feedback sound when unmuting
-            if (!isMuted) {
-                setTimeout(() => {
-                    this.audioManager.playSound('pop', { volume: 0.5 });
-                }, 100);
+        const touch = e.touches[0];
+        const rect = this.canvas.getBoundingClientRect();
+        
+        // Store touch start position
+        touchStartPos.x = touch.clientX;
+        touchStartPos.y = touch.clientY;
+        isMoving = false;
+        
+        // Update mouse position for shield activation
+        this.mouse.x = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
+        this.mouse.y = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
+        
+        // Activate shield on touch
+        this.activateShield();
+        
+        console.log('Touch shield activated at:', this.mouse.x.toFixed(0), this.mouse.y.toFixed(0));
+    }, { passive: false });
+    
+    this.canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const touch = e.touches[0];
+        const rect = this.canvas.getBoundingClientRect();
+        
+        // Update mouse position continuously
+        this.mouse.x = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
+        this.mouse.y = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
+        
+        // Calculate movement from start position
+        const deltaX = touch.clientX - touchStartPos.x;
+        const deltaY = touch.clientY - touchStartPos.y;
+        
+        // Clear all movement keys first
+        this.keys['KeyW'] = this.keys['ArrowUp'] = false;
+        this.keys['KeyS'] = this.keys['ArrowDown'] = false;
+        this.keys['KeyA'] = this.keys['ArrowLeft'] = false;
+        this.keys['KeyD'] = this.keys['ArrowRight'] = false;
+        
+        // Apply movement based on swipe direction
+        if (Math.abs(deltaX) > touchMoveThreshold) {
+            isMoving = true;
+            if (deltaX < 0) {
+                this.keys['KeyA'] = this.keys['ArrowLeft'] = true;
+                console.log('Touch move: LEFT');
+            } else {
+                this.keys['KeyD'] = this.keys['ArrowRight'] = true;
+                console.log('Touch move: RIGHT');
             }
         }
-    });
-}
+        
+        if (Math.abs(deltaY) > touchMoveThreshold) {
+            isMoving = true;
+            if (deltaY < 0) {
+                this.keys['KeyW'] = this.keys['ArrowUp'] = true;
+                console.log('Touch move: UP');
+            } else {
+                this.keys['KeyS'] = this.keys['ArrowDown'] = true;
+                console.log('Touch move: DOWN');
+            }
+        }
+        
+    }, { passive: false });
+    
+    this.canvas.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Clear all movement keys when touch ends
+        this.keys['KeyW'] = this.keys['ArrowUp'] = false;
+        this.keys['KeyS'] = this.keys['ArrowDown'] = false;
+        this.keys['KeyA'] = this.keys['ArrowLeft'] = false;
+        this.keys['KeyD'] = this.keys['ArrowRight'] = false;
+        
+        if (isMoving) {
+            console.log('Touch movement cleared');
+        }
+        isMoving = false;
+        
+    }, { passive: false });
+    
+    // UI button events
+    const startButton = document.getElementById('startButton');
+    const blinkitButton = document.getElementById('blinkitButton');
+    
+    if (startButton) {
+        startButton.addEventListener('click', () => this.startGame());
+    }
+    
+    if (blinkitButton) {
+        blinkitButton.addEventListener('click', () => this.openBlinkit());
+    }
+
+    // Audio toggle click handler
+    const audioToggle = document.getElementById('audioToggle');
+    if (audioToggle) {
+        audioToggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (this.audioManager) {
+                const isMuted = this.audioManager.toggleMute();
+                const audioIcon = audioToggle.querySelector('.audio-icon');
+                
+                if (audioIcon) {
+                    audioIcon.textContent = isMuted ? '🔇' : '🔊';
+                }
+                
+                audioToggle.classList.toggle('muted', isMuted);
+                
+                // Play UI feedback sound when unmuting
+                if (!isMuted) {
+                    setTimeout(() => {
+                        this.audioManager.playSound('pop', { volume: 0.5 });
+                    }, 100);
+                }
+            }
+        });
+    }
 }
 
     /**
@@ -3147,6 +3330,9 @@ if (audioToggle) {
             startScreen.classList.add('hidden');
         }
         
+        // CHANGE: Hide body background immediately to prevent yellow flash
+        document.body.style.background = 'transparent';
+        
         this.currentState = this.gameStates.GAMEPLAY;
         this.isRunning = true;
         this.sessionStartTime = Date.now();
@@ -3160,10 +3346,14 @@ if (audioToggle) {
         setTimeout(() => {
             if (this.audioManager) {
                 this.audioManager.playBackgroundAudio();
-                // Load Tier 2 sounds after first wave starts
                 this.audioManager.loadTier2Sounds();
             }
         }, 1000);
+        
+        // CHANGE: More aggressive canvas hiding
+        this.canvas.style.display = 'none !important';
+        this.canvas.style.visibility = 'hidden !important';
+        this.canvas.style.opacity = '0 !important';
         
         // Show HUD elements including audio toggle
         const elements = ['gameHUD', 'powerIndicators'];
@@ -3184,7 +3374,36 @@ if (audioToggle) {
         }
         
         this.resetGameState();
+        
+        // CHANGE: Wait for HUD animation to complete
+setTimeout(() => {
+    // Verify HUD is actually visible and fully rendered
+    const gameHUD = document.getElementById('gameHUD');
+    const scoreEl = document.getElementById('score');
+    const hudReady = gameHUD && 
+                   gameHUD.classList.contains('show') && 
+                   scoreEl &&
+                   getComputedStyle(gameHUD).opacity !== '0' &&
+                   parseFloat(getComputedStyle(gameHUD).opacity) >= 1.0;
+    
+    if (hudReady) {
+        console.log('HUD confirmed ready, showing canvas');
+        this.canvas.style.display = 'block';
+        this.canvas.style.visibility = 'visible';
+        this.canvas.style.opacity = '1';
         this.startGameLoop();
+    } else {
+        console.log('HUD not ready, waiting longer...');
+        // Additional wait with retry
+        setTimeout(() => {
+            console.log('Secondary timeout - showing canvas anyway');
+            this.canvas.style.display = 'block';
+            this.canvas.style.visibility = 'visible';
+            this.canvas.style.opacity = '1';
+            this.startGameLoop();
+        }, 200);
+    }
+}, 400); // Increased delay to 400ms total
         
         this.debugLog('info', 'startGame() completed successfully');
     } catch (error) {
@@ -3385,6 +3604,11 @@ calculateThreatLevel(damage) {
 
 spawnProjectile() {
     console.log('🎪 spawnProjectile() called');
+    // Mobile projectile limit
+    if (this.isMobile && this.projectiles.length >= this.mobileOptimizations.maxProjectiles) {
+        console.log('Mobile: Skipping spawn, max projectiles reached:', this.projectiles.length);
+        return; // Exit early if mobile has too many projectiles
+    }
     console.log('Current projectiles count:', this.projectiles.length);
     
     // Level-based projectile weighting for progressive difficulty
@@ -4050,11 +4274,22 @@ playResultsSound(rating) {
   startGameLoop() {
     let frameCount = 0;
     let lastFPSTime = performance.now();
+    let frameSkipCounter = 0; // Mobile frame skipper counter
     this.gameLoopId = null; // Add this to track the animation frame
     
     const gameLoop = (currentTime) => {
         // CRITICAL: Clear the stored animation frame ID immediately
         this.gameLoopId = null;
+
+          // Mobile frame skipping for 30fps instead of 60fps
+        if (this.isMobile) {
+            frameSkipCounter++;
+            if (frameSkipCounter < this.mobileOptimizations.frameSkip) {
+                this.gameLoopId = requestAnimationFrame(gameLoop);
+                return; // Skip this frame
+            }
+            frameSkipCounter = 0; // Reset counter after processing frame
+        }
         
         // ENHANCED EXIT CHECK: Multiple conditions to prevent brown overlay
         if (!this.isRunning || 
@@ -4092,20 +4327,22 @@ playResultsSound(rating) {
             return;
         }
         
-        // Performance monitoring
-        frameCount++;
-        if (currentTime - lastFPSTime >= 1000) {
-            const currentFPS = frameCount;
-            this.debugLog('debug', `FPS: ${currentFPS}, Projectiles: ${this.projectiles.length}, Particles: ${this.particles.length + this.trailParticles.length}`);
-            this.analytics.trackPerformanceMetrics(currentFPS);
-            frameCount = 0;
-            lastFPSTime = currentTime;
-        }
-        
-        const frameTime = performance.now() - frameStart;
-        if (frameTime > 16.67) {
-            this.debugLog('warn', `Slow frame detected: ${frameTime.toFixed(2)}ms`);
-        }
+       // Performance monitoring - skip on mobile for better performance
+if (!this.isMobile) {
+    frameCount++;
+    if (currentTime - lastFPSTime >= 1000) {
+        const currentFPS = frameCount;
+        this.debugLog('debug', `FPS: ${currentFPS}, Projectiles: ${this.projectiles.length}, Particles: ${this.particles.length + this.trailParticles.length}`);
+        this.analytics.trackPerformanceMetrics(currentFPS);
+        frameCount = 0;
+        lastFPSTime = currentTime;
+    }
+    
+    const frameTime = performance.now() - frameStart;
+    if (frameTime > 16.67) {
+        this.debugLog('warn', `Slow frame detected: ${frameTime.toFixed(2)}ms`);
+    }
+}
         
         // ENHANCED CONTINUATION CHECK: Only continue if multiple conditions are met
         if (this.isRunning && 
@@ -4259,7 +4496,65 @@ stopGameLoop() {
         this.updateAtmosphericSystem(deltaTime);
         this.checkCollisions();
         this.updateUI();
+
+        // ADD THIS BLOCK - Mobile memory management
+    if (this.isMobile) {
+        // Increment frame counter
+        if (!this.renderFrameId) this.renderFrameId = 0;
+        this.renderFrameId++;
+        
+        // Run optimization every 3 seconds (180 frames at 60fps, 90 frames at 30fps)
+        if (this.renderFrameId % 180 === 0) {
+            this.optimizeMemoryForMobile();
+        }
     }
+    }
+  
+ // ADD THIS ENTIRE METHOD after the update() method
+optimizeMemoryForMobile() {
+    if (!this.isMobile) return;
+    
+    const beforeParticles = this.particles.length;
+    const beforeTrailParticles = this.trailParticles.length;
+    const beforeProjectiles = this.projectiles.length;
+    
+    // Aggressively limit particles
+    if (this.particles.length > this.mobileOptimizations.maxParticles) {
+        const excess = this.particles.length - this.mobileOptimizations.maxParticles;
+        this.particles.splice(0, excess);
+    }
+    
+    if (this.trailParticles.length > this.mobileOptimizations.maxTrailParticles) {
+        const excess = this.trailParticles.length - this.mobileOptimizations.maxTrailParticles;
+        this.trailParticles.splice(0, excess);
+    }
+    
+    // Limit projectiles if spawning too many
+    if (this.projectiles.length > this.mobileOptimizations.maxProjectiles) {
+        const excess = this.projectiles.length - this.mobileOptimizations.maxProjectiles;
+        this.projectiles.splice(0, excess);
+    }
+    
+    // Clean up analytics data on mobile to prevent memory bloat
+    if (this.analytics && this.analytics.projectileAnalytics.length > 20) {
+        this.analytics.projectileAnalytics.splice(0, 10); // Remove oldest 10 entries
+    }
+    
+    // Clean up old reaction time data
+    if (this.analytics && this.analytics.reactionTimeData.length > 30) {
+        this.analytics.reactionTimeData.splice(0, 15); // Remove oldest 15 entries
+    }
+    
+    // Clean up defense patterns
+    if (this.defensePatterns && this.defensePatterns.length > 50) {
+        this.defensePatterns.splice(0, 25); // Remove oldest 25 entries
+    }
+    
+    console.log(`Mobile memory optimized:
+        Particles: ${beforeParticles} → ${this.particles.length}
+        Trail Particles: ${beforeTrailParticles} → ${this.trailParticles.length} 
+        Projectiles: ${beforeProjectiles} → ${this.projectiles.length}`);
+}
 
     /**
      * Update power-ups
@@ -4399,8 +4694,13 @@ this.aide.y = Math.max(activeMinY, Math.min(maxY, this.aide.y));
     updateProjectiles(deltaTime) {
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
             const proj = this.projectiles[i];
+
+             // ADD SAFETY CHECK - Initialize trail if missing
+            if (!proj.trail) {
+            proj.trail = [];
+           }
             
-            // Add to trail
+              // Add to trail
             proj.trail.push({ x: proj.x, y: proj.y });
             if (proj.trail.length > 5) proj.trail.shift();
             
@@ -4440,6 +4740,18 @@ this.aide.y = Math.max(activeMinY, Math.min(maxY, this.aide.y));
  * @param {number} deltaTime - Time delta
  */
 updateProjectileEffects(deltaTime) {
+    // Simplified projectile effects for mobile
+    if (this.isMobile) {
+        // Only basic distance tracking on mobile
+        this.projectiles.forEach(proj => {
+            const dx = proj.x - (this.politician.x + this.politician.width/2);
+            const dy = proj.y - (this.politician.y + this.politician.height/2);
+            proj.distanceToPolitician = Math.sqrt(dx * dx + dy * dy);
+        });
+        return; // Skip all enhanced effects
+    }
+    
+    // Full desktop effects 
     this.projectiles.forEach(proj => {
         // Update enhanced trail system
         this.updateEnhancedTrail(proj, deltaTime);
@@ -4827,6 +5139,10 @@ triggerColorOverlay(color = '#FF0000', intensity = 0.2, duration = 1.0) {
  * @param {number} deltaTime - Time delta
  */
 updateScreenEffects(deltaTime) {
+    // Skip all screen effects on mobile for performance
+    if (this.isMobile) return;
+    
+    // Existing desktop screen effects code continues unchanged...
     const effects = this.screenEffects;
     
     // Update flash effect
@@ -4840,7 +5156,7 @@ updateScreenEffects(deltaTime) {
             effects.flash.active = false;
         }
     }
-    
+
     // Update color overlay
     if (effects.colorOverlay.active) {
         effects.colorOverlay.duration -= deltaTime;
@@ -5038,73 +5354,83 @@ blockProjectile(projectile) {
        this.analytics.trackProjectileResolution(projectile.analyticsId, 'blocked', defenseMethod);
     }
     
-    // Impact particles (building on your existing logic)
-    const particleCount = Math.floor((15 + Math.random() * 8) * intensity);
+    // MOBILE OPTIMIZED PARTICLE CREATION
+    const particleCount = this.isMobile ? 
+        Math.floor(1 + Math.random() * 2) :  // Only 1-3 particles on mobile
+        Math.floor((15 + Math.random() * 8) * intensity); // Original count on desktop
+    
+    console.log(`Creating ${particleCount} impact particles (mobile: ${this.isMobile})`);
     
     for (let i = 0; i < particleCount; i++) {
         const angle = (Math.PI * 2 / particleCount) * i + Math.random() * 0.5;
-        const speed = 200 + Math.random() * 150;
+        const speed = this.isMobile ? 
+            80 + Math.random() * 40 :  // Slower particles on mobile
+            200 + Math.random() * 150;
         
         this.particles.push({
             x: projectile.x + (Math.random() - 0.5) * 5,
             y: projectile.y + (Math.random() - 0.5) * 5,
             vx: Math.cos(angle) * speed,
             vy: Math.sin(angle) * speed - 50,
-            life: 1.5 + Math.random() * 0.8,
-            maxLife: 2.0,
-            size: 4 + Math.random() * 8,
+            life: this.isMobile ? 0.5 : 1.5 + Math.random() * 0.8,
+            maxLife: this.isMobile ? 0.5 : 2.0,
+            size: this.isMobile ? 2 + Math.random() * 2 : 4 + Math.random() * 8,
             color: colors.primary,
             type: 'impact',
             projectileType: projectile.type,
             alpha: 1.0,
-            sparkle: Math.random() < 0.3,
+            sparkle: this.isMobile ? false : Math.random() < 0.3, // No sparkle on mobile
             spin: projectile.type === 'stone' || projectile.type === 'bottle' ? (Math.random() - 0.5) * 0.4 : 0,
             rotation: 0
         });
     }
     
-    // Sparkle particles
-    const sparkleCount = intensity > 1.5 ? 10 : 6;
-    for (let i = 0; i < sparkleCount; i++) {
-        this.particles.push({
-            x: projectile.x + (Math.random() - 0.5) * 20,
-            y: projectile.y + (Math.random() - 0.5) * 20,
-            vx: (Math.random() - 0.5) * 200,
-            vy: -Math.random() * 150 - 50,
-            life: 2.0,
-            maxLife: 2.0,
-            size: 2 + Math.random() * 4,
-            color: colors.secondary,
-            type: 'sparkle',
-            alpha: 1.0,
-            sparkle: true,
-            twinkle: Math.random() < 0.7
-        });
+    // MOBILE: Skip sparkle particles entirely for performance
+    if (!this.isMobile) {
+        const sparkleCount = intensity > 1.5 ? 10 : 6;
+        console.log(`Creating ${sparkleCount} sparkle particles (desktop only)`);
+        for (let i = 0; i < sparkleCount; i++) {
+            this.particles.push({
+                x: projectile.x + (Math.random() - 0.5) * 20,
+                y: projectile.y + (Math.random() - 0.5) * 20,
+                vx: (Math.random() - 0.5) * 200,
+                vy: -Math.random() * 150 - 50,
+                life: 2.0,
+                maxLife: 2.0,
+                size: 2 + Math.random() * 4,
+                color: colors.secondary,
+                type: 'sparkle',
+                alpha: 1.0,
+                sparkle: true,
+                twinkle: Math.random() < 0.7
+            });
+        }
     }
     
-    // Debris particles for heavy projectiles
-if (projectile.type === 'stone' || projectile.type === 'bottle' || projectile.type === 'shoe') {
-    for (let i = 0; i < 4; i++) {
-        this.particles.push({
-            x: projectile.x,
-            y: projectile.y,
-            vx: (Math.random() - 0.5) * 180,
-            vy: -Math.random() * 100 - 30,
-            life: 2.5,
-            maxLife: 2.5,
-            size: 3 + Math.random() * 3,
-            color: colors.debris,
-            type: 'debris',
-            alpha: 1.0,
-            sparkle: false,
-            spin: (Math.random() - 0.5) * 0.3,
-            rotation: 0
-        });
+    // MOBILE: Skip debris particles for heavy projectiles
+    if (!this.isMobile && (projectile.type === 'stone' || projectile.type === 'bottle' || projectile.type === 'shoe')) {
+        console.log('Creating 4 debris particles (desktop only)');
+        for (let i = 0; i < 4; i++) {
+            this.particles.push({
+                x: projectile.x,
+                y: projectile.y,
+                vx: (Math.random() - 0.5) * 180,
+                vy: -Math.random() * 100 - 30,
+                life: 2.5,
+                maxLife: 2.5,
+                size: 3 + Math.random() * 3,
+                color: colors.debris,
+                type: 'debris',
+                alpha: 1.0,
+                sparkle: false,
+                spin: (Math.random() - 0.5) * 0.3,
+                rotation: 0
+            });
+        }
     }
-}
 
-// Check for achievements after successful block
-this.checkMinimalAchievements();
+    // Check for achievements after successful block
+    this.checkMinimalAchievements();
 }
 
 /**
@@ -5618,6 +5944,9 @@ updateReactionSystem(deltaTime) {
  * @param {number} deltaTime - Time delta
  */
 updateAtmosphericSystem(deltaTime) {
+     // Skip atmospheric effects entirely on mobile
+    if (this.isMobile) return;
+
     const wind = this.atmosphericSystem.wind;
     const parallax = this.atmosphericSystem.parallaxLayers;
     
@@ -5675,7 +6004,24 @@ render() {
         return;
     }
     
-    // Show canvas ONLY during confirmed gameplay
+    // Enhanced HUD readiness check to prevent all overlay flashes
+    const gameHUD = document.getElementById('gameHUD');
+    const scoreDisplay = document.getElementById('score');
+    const hudFullyReady = gameHUD && 
+                         gameHUD.classList.contains('show') && 
+                         scoreDisplay && 
+                         getComputedStyle(gameHUD).opacity !== '0' &&
+                         getComputedStyle(gameHUD).visibility !== 'hidden' &&
+                         parseFloat(getComputedStyle(gameHUD).opacity) >= 0.9;
+
+    if (!hudFullyReady) {
+        console.log('🚫 render() - HUD not fully ready, canvas staying hidden');
+        this.canvas.style.display = 'none';
+        this.canvas.style.visibility = 'hidden';
+        return;
+    }
+    
+    // Show canvas ONLY when HUD is confirmed ready
     this.canvas.style.display = 'block';
     this.canvas.style.visibility = 'visible';
     this.canvas.style.opacity = '1';
@@ -5755,8 +6101,8 @@ render() {
     
     this.ctx.restore();
     
-    // Screen effects - only during active gameplay
-    if (this.currentState === this.gameStates.GAMEPLAY) {
+    // Screen effects - only during active gameplay and not on mobile
+    if (!this.isMobile && this.currentState === this.gameStates.GAMEPLAY) {
         this.drawScreenEffects();
     }
     
@@ -8060,25 +8406,30 @@ drawSplatterDrip(x, y, size) {
      * @param {number} vx - X velocity
      * @param {number} vy - Y velocity
      */
-    createTrailParticle(x, y, vx, vy) {
-        const particle = {
-            x: x,
-            y: y,
-            vx: vx * 0.3 + (Math.random() - 0.5) * 50,
-            vy: vy * 0.3 + (Math.random() - 0.5) * 50,
-            life: 0.8,
-            maxLife: 0.8,
-            size: 2 + Math.random() * 2,
-            alpha: 1.0,
-            color: `hsl(${180 + Math.random() * 40}, 80%, ${60 + Math.random() * 20}%)`
-        };
-        
-        this.trailParticles.push(particle);
-        
-        if (this.trailParticles.length > 30) {
-            this.trailParticles.shift();
-        }
+   createTrailParticle(x, y, vx, vy) {
+    // Mobile optimization: drastically reduce particles
+    if (this.isMobile && Math.random() < 0.85) return; // Skip 85% of particles on mobile
+    
+    const particle = {
+        x: x,
+        y: y,
+        vx: vx * 0.3 + (Math.random() - 0.5) * 50,
+        vy: vy * 0.3 + (Math.random() - 0.5) * 50,
+        life: this.isMobile ? 0.3 : 0.8,        // Much shorter life on mobile
+        maxLife: this.isMobile ? 0.3 : 0.8,
+        size: this.isMobile ? 1 + Math.random() * 0.5 : 2 + Math.random() * 2, // Smaller particles
+        alpha: 1.0,
+        color: `hsl(${180 + Math.random() * 40}, 80%, ${60 + Math.random() * 20}%)`
+    };
+    
+    this.trailParticles.push(particle);
+    
+    // Aggressive cleanup for mobile
+    const maxParticles = this.mobileOptimizations ? this.mobileOptimizations.maxTrailParticles : 10;
+    if (this.trailParticles.length > maxParticles) {
+        this.trailParticles.splice(0, this.trailParticles.length - maxParticles);
     }
+}
 
     // SPRITE SYSTEM METHODS
 
@@ -9409,37 +9760,41 @@ function playAgain() {
         debug3DViewer('RESULTS_HIDDEN', 'Results screen hidden');
     }
     
-    // Rest of your existing playAgain() code...
-    setTimeout(() => {
-        if (window.game) {
-            window.game.politicianHealth = 100;
-            window.game.canvas.style.display = 'block';
-            window.game.canvas.style.visibility = 'visible';
-            window.game.canvas.style.opacity = '1';
-            window.game.projectiles = [];
-            window.game.particles = [];
-            window.game.trailParticles = [];
-            window.game.politician.stains = [];
-            window.game.currentState = window.game.gameStates.START_SCREEN;
-            window.game.isRunning = false;
-            window.game.ctx.clearRect(0, 0, window.game.canvas.width, window.game.canvas.height);
-            window.game.touchControls = {
-                up: false, down: false, left: false, right: false, shield: false, slowmo: false
-            };
-            
-            const hudElements = ['gameHUD', 'levelInfo', 'powerIndicators'];
-            hudElements.forEach(id => {
-                const element = document.getElementById(id);
-                if (element) {
-                    element.classList.remove('show');
-                }
-            });
-            
-            window.game.resetGameState();
-            window.game.startGame();
-            debug3DViewer('GAME_RESTARTED', 'Game restart completed');
-        }
-    }, 100);
+    // SetTimeout with aggressive time conditions
+setTimeout(() => {
+    if (window.game) {
+        // Hide canvas initially
+        window.game.canvas.style.display = 'none';
+        window.game.canvas.style.visibility = 'hidden';
+        
+        // Reset game state
+        window.game.politicianHealth = 100;
+        window.game.projectiles = [];
+        window.game.particles = [];
+        window.game.trailParticles = [];
+        window.game.politician.stains = [];
+        window.game.currentState = window.game.gameStates.START_SCREEN;
+        window.game.isRunning = false;
+        window.game.ctx.clearRect(0, 0, window.game.canvas.width, window.game.canvas.height);
+        
+        // Clear touch controls
+        window.game.touchControls = {
+            up: false, down: false, left: false, right: false, shield: false, slowmo: false
+        };
+        
+        // Hide HUD elements first
+        const hudElements = ['gameHUD', 'levelInfo', 'powerIndicators'];
+        hudElements.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.classList.remove('show');
+            }
+        });
+        
+        window.game.resetGameState();
+        window.game.startGame(); // This will handle the proper canvas timing
+    }
+}, 100);
 }
 
 /**
