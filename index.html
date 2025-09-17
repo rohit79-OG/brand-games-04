@@ -6422,41 +6422,151 @@ drawMobileAide() {
  * Enhanced mobile projectiles with type indicators
  */
 drawMobileProjectiles() {
-    if (this.projectiles && this.projectiles.length > 0) {
-        this.projectiles.forEach(proj => {
-            // Main projectile body
-            this.ctx.fillStyle = proj.color || '#FF0000';
+    if (!this.projectiles || this.projectiles.length === 0) return;
+    
+    this.projectiles.forEach(proj => {
+        this.ctx.save();
+        
+        // Enhanced projectile with subtle glow
+        this.ctx.shadowColor = proj.color;
+        this.ctx.shadowBlur = 6;
+        
+        // Main projectile body with gradient
+        const gradient = this.ctx.createRadialGradient(
+            proj.x - proj.size/4, proj.y - proj.size/4, 0,
+            proj.x, proj.y, proj.size/2
+        );
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+        gradient.addColorStop(0.7, proj.color);
+        gradient.addColorStop(1, proj.color + '80');
+        
+        this.ctx.fillStyle = gradient;
+        this.ctx.beginPath();
+        this.ctx.arc(proj.x, proj.y, Math.max(proj.size/2, 8), 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Enhanced type-specific details for better recognition
+        this.drawProjectileTypeDetails(proj);
+        
+        // Simple threat level indicator
+        this.drawThreatIndicator(proj);
+        
+        this.ctx.restore();
+    });
+}
+/**
+ * Draw projectile type details - replaces your existing method if any
+ */
+drawProjectileTypeDetails(proj) {
+    const size = Math.max(proj.size/2, 8);
+    
+    switch(proj.type) {
+        case 'tomato':
+            // Red core with green stem
+            this.ctx.fillStyle = '#8B0000';
+            this.ctx.fillRect(proj.x - 2, proj.y - size - 3, 4, 6);
+            this.ctx.fillStyle = '#228B22';
+            this.ctx.fillRect(proj.x - 1, proj.y - size - 1, 2, 3);
+            break;
+            
+        case 'egg':
+            // White highlight with subtle crack
+            this.ctx.strokeStyle = '#CCC';
+            this.ctx.lineWidth = 1;
             this.ctx.beginPath();
-            this.ctx.arc(proj.x, proj.y, Math.max(proj.size/2, 8), 0, Math.PI * 2);
+            this.ctx.moveTo(proj.x - size/3, proj.y - 2);
+            this.ctx.lineTo(proj.x + size/3, proj.y + 2);
+            this.ctx.stroke();
+            break;
+            
+        case 'shoe':
+            // Shoe sole line
+            this.ctx.fillStyle = '#654321';
+            this.ctx.fillRect(proj.x - size/2, proj.y + size/3, size, 2);
+            break;
+            
+        case 'bottle':
+            // Bottle neck
+            this.ctx.fillStyle = '#006400';
+            this.ctx.fillRect(proj.x - 2, proj.y - size/2 - 4, 4, 6);
+            break;
+            
+        case 'stone':
+            // Stone texture dots
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            for (let i = 0; i < 3; i++) {
+                const angle = (i / 3) * Math.PI * 2;
+                const x = proj.x + Math.cos(angle) * size/3;
+                const y = proj.y + Math.sin(angle) * size/3;
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, 1, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+            break;
+            
+        case 'banana':
+            // Banana curve and spots
+            this.ctx.fillStyle = 'rgba(139, 69, 19, 0.6)';
+            this.ctx.beginPath();
+            this.ctx.arc(proj.x - size/4, proj.y, 2, 0, Math.PI * 2);
+            this.ctx.arc(proj.x + size/4, proj.y, 2, 0, Math.PI * 2);
             this.ctx.fill();
+            break;
             
-            // Simple type indicators
-            this.ctx.fillStyle = '#FFFFFF';
-            this.ctx.font = '12px Arial';
-            this.ctx.textAlign = 'center';
-            
-            let symbol = '•';
-            switch(proj.type) {
-                case 'tomato': symbol = '🍅'; break;
-                case 'egg': symbol = '🥚'; break;
-                case 'shoe': symbol = '👟'; break;
-                case 'bottle': symbol = '🍾'; break;
-                case 'stone': symbol = '⚫'; break;
-                case 'banana': symbol = '🍌'; break;
-                case 'apple': symbol = '🍎'; break;
-            }
-            
-            // Fallback to letters if emojis don't render
-            if (symbol.length > 1) {
-                this.ctx.fillText(symbol, proj.x, proj.y + 4);
-            } else {
-                const letter = proj.type.charAt(0).toUpperCase();
-                this.ctx.fillText(letter, proj.x, proj.y + 4);
-            }
-        });
+        case 'apple':
+            // Apple shine
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            this.ctx.beginPath();
+            this.ctx.arc(proj.x - size/3, proj.y - size/4, size/4, 0, Math.PI * 2);
+            this.ctx.fill();
+            // Apple stem
+            this.ctx.fillStyle = '#8B4513';
+            this.ctx.fillRect(proj.x - 1, proj.y - size/2 - 2, 2, 4);
+            break;
     }
 }
 
+/**
+ * Draw threat indicator - adds to your existing threat system
+ */
+drawThreatIndicator(proj) {
+    if (proj.threatLevel === 'critical' || proj.threatLevel === 'high') {
+        const time = Date.now() * 0.01;
+        const pulse = Math.sin(time) * 0.3 + 0.7;
+        
+        this.ctx.strokeStyle = proj.threatLevel === 'critical' ? '#FF0000' : '#FF6347';
+        this.ctx.lineWidth = 2;
+        this.ctx.globalAlpha = pulse * 0.6;
+        
+        this.ctx.beginPath();
+        this.ctx.arc(proj.x, proj.y, proj.size/2 + 8, 0, Math.PI * 2);
+        this.ctx.stroke();
+        
+        this.ctx.globalAlpha = 1;
+    }
+}
+/**
+ * Update your existing mobileRender() method - just add the simple particle call
+ */
+drawSimpleParticles() {
+    // Only draw a few particles for impact effects
+    const maxMobileParticles = 5;
+    const recentParticles = this.particles.slice(-maxMobileParticles);
+    
+    recentParticles.forEach(particle => {
+        if (particle.life <= 0) return;
+        
+        this.ctx.save();
+        this.ctx.globalAlpha = particle.alpha || (particle.life / 2.0);
+        this.ctx.fillStyle = particle.color;
+        
+        this.ctx.beginPath();
+        this.ctx.arc(particle.x, particle.y, Math.max(particle.size * 0.5, 1), 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        this.ctx.restore();
+    });
+}
 /**
  * Enhanced mobile render with simple background elements
  */
@@ -6470,34 +6580,28 @@ mobileRender() {
     if (this.lastMobileRender && now - this.lastMobileRender < 50) return;
     this.lastMobileRender = now;
     
-    // Sky gradient background
-    const gradient = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height * 0.6);
-    gradient.addColorStop(0, '#87CEEB');
-    gradient.addColorStop(1, '#B0E0E6');
-    this.ctx.fillStyle = gradient;
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height * 0.6);
+    // Clear canvas
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     
-    // Simple ground
-    this.ctx.fillStyle = '#DEB887';
-    this.ctx.fillRect(0, this.canvas.height * 0.6, this.canvas.width, this.canvas.height * 0.4);
-    
-    // Simple stage
-    const centerX = this.canvas.width / 2;
-    const groundY = this.canvas.height * 0.65;
-    this.ctx.fillStyle = '#8B7355';
-    this.ctx.fillRect(centerX - 80, groundY - 10, 160, 10);
-    
-    // Draw game elements
     try {
+        // ENHANCED BACKGROUND ELEMENTS (replaces simple gradient)
+        this.drawEnhancedSky();
+        this.drawSimpleBuildings();
+        this.drawEnhancedGround();
+        this.drawEnhancedStage();
+        this.drawSimpleCrowd();
+        
+        // EXISTING CHARACTER AND PROJECTILE DRAWING (keep as is)
         this.drawMobilePolitician();
         this.drawMobileAide();
         this.drawMobileProjectiles();
+        this.drawSimpleParticles();
+        
     } catch (error) {
         console.warn('Enhanced mobile render error:', error);
         this.drawFallbackGameElements();
     }
 }
-
 /**
  * Better politician fallback (looks more like original)
  */
@@ -6644,6 +6748,304 @@ drawFallbackGameElements() {
     this.projectiles.forEach(proj => {
         this.ctx.fillRect(proj.x - 10, proj.y - 10, 20, 20);
     });
+}
+
+/**
+ * Draw enhanced sky with subtle cloud animations
+ */
+drawEnhancedSky() {
+    const groundY = this.gameHeight * 0.65;
+    
+    // Dynamic sky gradient based on game intensity
+    const intensity = Math.min(this.projectiles.length / 5, 0.3);
+    const skyGradient = this.ctx.createLinearGradient(0, 0, 0, groundY);
+    
+    // Sky color shifts slightly based on danger level
+    const hue1 = 200 + intensity * 20; // Blue to more intense
+    const hue2 = 210 + intensity * 15;
+    
+    skyGradient.addColorStop(0, `hsl(${hue1}, 60%, 80%)`);
+    skyGradient.addColorStop(0.7, `hsl(${hue2}, 50%, 75%)`);
+    skyGradient.addColorStop(1, '#DEB887');
+    
+    this.ctx.fillStyle = skyGradient;
+    this.ctx.fillRect(0, 0, this.gameWidth, groundY);
+    
+    // Add simple moving clouds
+    this.drawSimpleClouds();
+}
+
+/**
+ * Draw simple animated clouds for mobile
+ */
+drawSimpleClouds() {
+    if (this.isMobile) {
+        // Only 2 clouds for mobile performance
+        const clouds = [
+            { baseX: this.gameWidth * 0.2, y: this.gameHeight * 0.15, size: 40 },
+            { baseX: this.gameWidth * 0.7, y: this.gameHeight * 0.12, size: 50 }
+        ];
+        
+        const time = Date.now() * 0.0001; // Very slow movement
+        
+        clouds.forEach((cloud, index) => {
+            const moveX = (cloud.baseX + time * 30 + index * 100) % (this.gameWidth + 100) - 50;
+            this.drawSimpleCloud(moveX, cloud.y, cloud.size);
+        });
+    }
+}
+
+/**
+ * Draw a simple cloud shape
+ */
+drawSimpleCloud(x, y, size) {
+    this.ctx.save();
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.05)';
+    this.ctx.shadowBlur = 5;
+    
+    // Simple 3-circle cloud
+    this.ctx.beginPath();
+    this.ctx.arc(x - size * 0.3, y, size * 0.4, 0, Math.PI * 2);
+    this.ctx.arc(x, y - size * 0.2, size * 0.5, 0, Math.PI * 2);
+    this.ctx.arc(x + size * 0.3, y, size * 0.4, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    this.ctx.restore();
+}
+
+/**
+ * Draw simple background buildings with Indian village huts
+ */
+drawSimpleBuildings() {
+    const groundY = this.gameHeight * 0.65;
+    
+    // Mix of modern buildings and traditional huts
+    const structures = [
+        // Traditional huts
+        { x: this.gameWidth * 0.05, width: 50, height: 45, type: 'hut', color: '#8B4513' },
+        { x: this.gameWidth * 0.15, width: 55, height: 40, type: 'hut', color: '#A0522D' },
+        
+        // Modern buildings  
+        { x: this.gameWidth * 0.25, width: 70, height: 60, type: 'building', color: '#CD853F' },
+        { x: this.gameWidth * 0.75, width: 65, height: 75, type: 'building', color: '#F4A460' },
+        
+        // More traditional huts
+        { x: this.gameWidth * 0.85, width: 48, height: 42, type: 'hut', color: '#8B4513' }
+    ];
+    
+    structures.forEach((structure, index) => {
+        if (structure.type === 'hut') {
+            this.drawTraditionalHut(structure, groundY, index);
+        } else {
+            this.drawModernBuilding(structure, groundY);
+        }
+    });
+}
+
+/**
+ * Draw traditional Indian village hut with thatched roof
+ */
+drawTraditionalHut(hut, groundY, index) {
+    // Hut walls (mud/clay color)
+    this.ctx.fillStyle = hut.color;
+    this.ctx.fillRect(hut.x, groundY - hut.height, hut.width, hut.height);
+    
+    // Thatched roof (curved)
+    const roofHeight = 25;
+    this.ctx.fillStyle = '#DAA520'; // Golden straw color
+    this.ctx.beginPath();
+    this.ctx.moveTo(hut.x - 8, groundY - hut.height);
+    // Create curved thatched roof
+    this.ctx.quadraticCurveTo(
+        hut.x + hut.width/2, 
+        groundY - hut.height - roofHeight, 
+        hut.x + hut.width + 8, 
+        groundY - hut.height
+    );
+    this.ctx.lineTo(hut.x + hut.width, groundY - hut.height + 5);
+    this.ctx.lineTo(hut.x, groundY - hut.height + 5);
+    this.ctx.closePath();
+    this.ctx.fill();
+    
+    // Roof texture lines (thatch pattern)
+    this.ctx.strokeStyle = '#B8860B';
+    this.ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i++) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(hut.x - 5 + i * 15, groundY - hut.height - 2);
+        this.ctx.quadraticCurveTo(
+            hut.x + hut.width/2, 
+            groundY - hut.height - roofHeight + 5, 
+            hut.x + hut.width + 5 - i * 15, 
+            groundY - hut.height - 2
+        );
+        this.ctx.stroke();
+    }
+    
+    // Simple door
+    this.ctx.fillStyle = '#654321';
+    this.ctx.fillRect(hut.x + hut.width/2 - 8, groundY - 25, 16, 25);
+    
+    // Small window
+    this.ctx.fillStyle = 'rgba(255, 255, 100, 0.4)';
+    this.ctx.fillRect(hut.x + 12, groundY - hut.height + 15, 10, 8);
+    
+    // Chimney smoke (animated)
+    this.drawChimneySmoke(hut.x + hut.width - 10, groundY - hut.height - 15, index);
+}
+
+/**
+ * Draw modern building (existing style)
+ */
+drawModernBuilding(building, groundY) {
+    // Building body
+    this.ctx.fillStyle = building.color;
+    this.ctx.fillRect(building.x, groundY - building.height, building.width, building.height);
+    
+    // Simple roof
+    this.ctx.fillStyle = this.darkenColor(building.color, 0.2);
+    this.ctx.beginPath();
+    this.ctx.moveTo(building.x - 5, groundY - building.height);
+    this.ctx.lineTo(building.x + building.width/2, groundY - building.height - 15);
+    this.ctx.lineTo(building.x + building.width + 5, groundY - building.height);
+    this.ctx.fill();
+    
+    // Simple windows
+    this.ctx.fillStyle = 'rgba(255, 255, 100, 0.3)';
+    for (let i = 0; i < 2; i++) {
+        this.ctx.fillRect(
+            building.x + 15 + i * 25, 
+            groundY - building.height + 20, 
+            12, 12
+        );
+    }
+}
+
+/**
+ * Draw animated chimney smoke
+ */
+drawChimneySmoke(x, y, hutIndex) {
+    const time = Date.now() * 0.002;
+    const smokeParticles = 3;
+    
+    this.ctx.save();
+    this.ctx.fillStyle = 'rgba(200, 200, 200, 0.4)';
+    
+    for (let i = 0; i < smokeParticles; i++) {
+        const offsetTime = time + hutIndex + i * 0.8;
+        const smokeX = x + Math.sin(offsetTime) * 8;
+        const smokeY = y - (i * 12) + Math.sin(offsetTime * 1.5) * 3;
+        const smokeSize = 4 + Math.sin(offsetTime) * 2;
+        
+        this.ctx.globalAlpha = 0.6 - (i * 0.15);
+        this.ctx.beginPath();
+        this.ctx.arc(smokeX, smokeY, smokeSize, 0, Math.PI * 2);
+        this.ctx.fill();
+    }
+    
+    this.ctx.restore();
+}
+
+/**
+ * Draw simplified crowd silhouettes
+ */
+drawSimpleCrowd() {
+    const groundY = this.gameHeight * 0.65;
+    const crowdY = groundY + 10;
+    
+    // Only draw if there are projectiles (crowd gets excited)
+    if (this.projectiles.length === 0) return;
+    
+    const crowdSections = [
+        { startX: 0, endX: this.gameWidth * 0.3, density: 8 },
+        { startX: this.gameWidth * 0.7, endX: this.gameWidth, density: 8 }
+    ];
+    
+    this.ctx.save();
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+    
+    crowdSections.forEach(section => {
+        const sectionWidth = section.endX - section.startX;
+        const spacing = sectionWidth / section.density;
+        
+        for (let i = 0; i < section.density; i++) {
+            const x = section.startX + (i * spacing) + Math.random() * 10 - 5;
+            const height = 15 + Math.random() * 10;
+            
+            // Simple crowd silhouette
+            this.ctx.fillRect(x, crowdY, 4, height);
+            
+            // Simple head
+            this.ctx.beginPath();
+            this.ctx.arc(x + 2, crowdY - 3, 3, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+    });
+    
+    this.ctx.restore();
+}
+
+/**
+ * Draw enhanced stage with details
+ */
+drawEnhancedStage() {
+    const centerX = this.gameWidth / 2;
+    const groundY = this.gameHeight * 0.65;
+    const stageWidth = this.isMobile ? 140 : 180;
+    const stageHeight = this.isMobile ? 8 : 12;
+    
+    // Stage shadow
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+    this.ctx.fillRect(centerX - stageWidth/2 - 2, groundY - 2, stageWidth + 4, stageHeight + 4);
+    
+    // Stage platform with gradient
+    const stageGradient = this.ctx.createLinearGradient(0, groundY - stageHeight, 0, groundY);
+    stageGradient.addColorStop(0, '#A0522D');
+    stageGradient.addColorStop(1, '#8B7355');
+    
+    this.ctx.fillStyle = stageGradient;
+    this.ctx.fillRect(centerX - stageWidth/2, groundY - stageHeight, stageWidth, stageHeight);
+    
+    // Stage edge highlight
+    this.ctx.fillStyle = '#CD853F';
+    this.ctx.fillRect(centerX - stageWidth/2, groundY - stageHeight, stageWidth, 2);
+    
+    // Simple stage supports
+    this.ctx.fillStyle = '#654321';
+    this.ctx.fillRect(centerX - stageWidth/2 + 10, groundY - stageHeight, 4, stageHeight + 5);
+    this.ctx.fillRect(centerX + stageWidth/2 - 14, groundY - stageHeight, 4, stageHeight + 5);
+}
+
+/**
+ * Draw enhanced ground with texture
+ */
+drawEnhancedGround() {
+    const groundY = this.gameHeight * 0.65;
+    
+    // Ground gradient with texture
+    const groundGradient = this.ctx.createLinearGradient(0, groundY, 0, this.gameHeight);
+    groundGradient.addColorStop(0, '#DEB887');
+    groundGradient.addColorStop(0.3, '#D2B48C');
+    groundGradient.addColorStop(1, '#C19A6B');
+    
+    this.ctx.fillStyle = groundGradient;
+    this.ctx.fillRect(0, groundY, this.gameWidth, this.gameHeight - groundY);
+    
+    // Simple ground texture (mobile-safe)
+    if (!this.isMobile || this.projectiles.length > 0) {
+        this.ctx.save();
+        this.ctx.globalAlpha = 0.1;
+        this.ctx.fillStyle = '#8B7355';
+        
+        // Add simple texture lines
+        for (let i = 0; i < 8; i++) {
+            const y = groundY + 10 + i * 8;
+            this.ctx.fillRect(0, y, this.gameWidth, 1);
+        }
+        
+        this.ctx.restore();
+    }
 }
 
 /**
