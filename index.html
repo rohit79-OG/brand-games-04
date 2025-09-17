@@ -3418,31 +3418,48 @@ setupEventListeners() {
             }
         });
     }
-
-    // Add window focus/blur handlers to pause game on focus loss (mobile optimization)
-    if (this.isMobile) {
-        window.addEventListener('blur', () => {
-            // Clear all input states when app loses focus
-            this.keys = {};
-            touchActive = false;
-            isMoving = false;
-        });
         
-        window.addEventListener('focus', () => {
-            // Reset input states when app regains focus
+if (this.isMobile) {
+    // Handle page visibility changes (when user switches tabs/apps)
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            console.log('Page hidden - stopping game loop');
+            this.isRunning = false;
+            this.stopGameLoop();
+            
+            // Clear all inputs when app loses focus
             this.keys = {};
-        });
-        
-        // Handle page visibility changes (when user switches tabs/apps)
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                // Clear all inputs when page becomes hidden
-                this.keys = {};
-                touchActive = false;
-                isMoving = false;
-            }
-        });
-    }
+            
+        } else if (this.currentState === this.gameStates.GAMEPLAY) {
+            console.log('Page visible - game was paused');
+            // Don't auto-restart, let user tap to continue
+        }
+    });
+    
+    // Handle window focus/blur
+    window.addEventListener('blur', () => {
+        console.log('Window blur - clearing input states');
+        this.keys = {};
+    });
+    
+    window.addEventListener('focus', () => {
+        console.log('Window focus - resetting input states');
+        this.keys = {};
+    });
+    
+    // Handle page hide (iOS Safari specific)
+    window.addEventListener('pagehide', () => {
+        console.log('Page hide - emergency stop');
+        this.isRunning = false;
+        this.stopGameLoop();
+    });
+    
+    // Handle page show (when returning from background)
+    window.addEventListener('pageshow', () => {
+        console.log('Page show - clearing states');
+        this.keys = {};
+    });
+}
 }
     /**
      * Load game assets with progress tracking
@@ -3793,6 +3810,18 @@ calculateThreatLevel(damage) {
 }
 
 spawnProjectile() {
+    // MOBILE: Ultra-conservative spawning
+    if (this.isMobile) {
+        if (this.projectiles.length >= 1) {
+            console.log('Mobile: Skipping spawn, max projectiles reached');
+            return; // Only allow 1 projectile at a time on mobile
+        }
+        
+        // Spawn much less frequently on mobile
+        if (Math.random() < 0.7) { // 30% chance to skip spawn
+            return;
+        }
+    }
     console.log('🎪 spawnProjectile() called');
     // Mobile projectile limit
     if (this.isMobile && this.projectiles.length >= this.mobileOptimizations.maxProjectiles) {
@@ -4467,7 +4496,8 @@ startGameLoop() {
     let lastFPSTime = performance.now();
     let frameSkipCounter = 0;
     let errorCount = 0;
-    const maxErrors = 10;
+    let lastUpdateTime = 0;
+    const maxErrors = 5; // Reduced from 10
     
     this.gameLoopId = null;
     
@@ -4475,63 +4505,97 @@ startGameLoop() {
         this.gameLoopId = null;
         
         try {
-            // Enhanced exit conditions for mobile stability
+            // CRITICAL: More aggressive exit conditions
             if (!this.isRunning || 
-                this.currentState === this.gameStates.GAME_OVER ||
+                this.currentState !== this.gameStates.GAMEPLAY ||
                 this.politicianHealth <= 0 ||
-                errorCount >= maxErrors) {
+                errorCount >= maxErrors ||
+                !document.hasFocus()) { // Stop when page loses focus
                 
-                console.log("Game loop stopped - cleanup initiated");
+                console.log("Game loop stopped - condition failed");
                 this.stopGameLoop();
                 return;
             }
             
-            // Mobile frame skipping with safety checks
+            // MOBILE: Skip frames more aggressively 
             if (this.isMobile) {
                 frameSkipCounter++;
-                if (frameSkipCounter < this.mobileOptimizations.frameSkip) {
+                // Skip 3 out of 4 frames (run at ~15fps instead of 60fps)
+                if (frameSkipCounter < 4) {
                     this.gameLoopId = requestAnimationFrame(gameLoop);
                     return;
                 }
                 frameSkipCounter = 0;
             }
             
+            // CRITICAL: Throttle update frequency on mobile
+            const now = performance.now();
+            if (this.isMobile && (now - lastUpdateTime) < 66) { // Limit to 15fps max
+                this.gameLoopId = requestAnimationFrame(gameLoop);
+                return;
+            }
+            lastUpdateTime = now;
+            
             const frameStart = performance.now();
             
-            this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.033); // Cap at 30fps
+            // Cap deltaTime more aggressively for mobile stability
+            this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, this.isMobile ? 0.05 : 0.033);
             this.lastTime = currentTime;
             
-            this.update(this.deltaTime);
-            this.render();
-            
-            // Performance monitoring for mobile
-            const frameTime = performance.now() - frameStart;
-            if (this.isMobile && frameTime > 33) { // Frame took longer than 33ms
-                console.warn(`Slow mobile frame: ${frameTime.toFixed(2)}ms`);
+            // CRITICAL: Wrap update and render in separate try-catch
+            try {
+                this.update(this.deltaTime);
+            } catch (updateError) {
+                console.error('Update error:', updateError);
+                errorCount++;
             }
             
-            // Continue loop only if still running
-            if (this.isRunning && this.currentState === this.gameStates.GAMEPLAY && this.politicianHealth > 0) {
+            try {
+                this.render();
+            } catch (renderError) {
+                console.error('Render error:', renderError);
+                errorCount++;
+            }
+            
+            // Mobile performance monitoring
+            const frameTime = performance.now() - frameStart;
+            if (this.isMobile && frameTime > 50) { // Frame took longer than 50ms
+                console.warn(`Mobile frame overrun: ${frameTime.toFixed(2)}ms`);
+                errorCount++; // Count slow frames as errors
+            }
+            
+            // Continue only if everything is still OK
+            if (this.isRunning && 
+                this.currentState === this.gameStates.GAMEPLAY && 
+                this.politicianHealth > 0 &&
+                errorCount < maxErrors) {
                 this.gameLoopId = requestAnimationFrame(gameLoop);
+            } else {
+                console.log('Game loop natural end');
+                this.stopGameLoop();
             }
             
         } catch (error) {
             errorCount++;
-            console.error(`Game loop error ${errorCount}/${maxErrors}:`, error);
+            console.error(`Critical game loop error ${errorCount}/${maxErrors}:`, error);
             
-            if (errorCount < maxErrors) {
-                // Try to continue after error
-                this.gameLoopId = requestAnimationFrame(gameLoop);
-            } else {
-                console.error('Too many errors, stopping game loop');
+            if (errorCount >= maxErrors) {
+                console.error('Too many errors, emergency stop');
                 this.stopGameLoop();
+                // Show user-friendly error
+                setTimeout(() => {
+                    alert('Game encountered errors. Refreshing page...');
+                    window.location.reload();
+                }, 100);
+            } else {
+                this.gameLoopId = requestAnimationFrame(gameLoop);
             }
         }
     };
     
+    console.log('Starting mobile-optimized game loop');
     this.gameLoopId = requestAnimationFrame(gameLoop);
 }
-
 
 stopGameLoop() {
     console.log('🛑 stopGameLoop() - Comprehensive cleanup initiated');
@@ -4630,11 +4694,25 @@ stopGameLoop() {
      * Update game logic
      * @param {number} deltaTime - Time delta
      */
-    update(deltaTime) {
-        if (this.currentState !== this.gameStates.GAMEPLAY) return;
+  update(deltaTime) {
+    if (this.currentState !== this.gameStates.GAMEPLAY) return;
+    
+    // MOBILE: Skip expensive systems entirely
+    if (this.isMobile) {
+        // Run memory optimization every 60 frames (~4 seconds at 15fps)
+        if (!this.mobileFrameCount) this.mobileFrameCount = 0;
+        this.mobileFrameCount++;
         
-        const timeMultiplier = this.activePowers.slowmo > 0 ? 0.25 : 1.0;
-        const adjustedDelta = deltaTime * timeMultiplier;
+        if (this.mobileFrameCount % 60 === 0) {
+            this.optimizeMemoryForMobile();
+        }
+        
+        // Skip expensive atmospheric and screen effects
+        deltaTime = Math.min(deltaTime, 0.033); // Cap deltaTime
+    }
+    
+    const timeMultiplier = this.activePowers.slowmo > 0 ? 0.5 : 1.0; // Less dramatic slowmo
+    const adjustedDelta = deltaTime * timeMultiplier;
 
         // Update politician reaction timer
     if (this.politician.reactionTimer > 0) {
@@ -4684,49 +4762,45 @@ stopGameLoop() {
     }
     }
   
-// 4. AGGRESSIVE MOBILE MEMORY MANAGEMENT
+//AGGRESSIVE MOBILE MEMORY MANAGEMENT
 optimizeMemoryForMobile() {
     if (!this.isMobile) return;
     
-    // More aggressive cleanup
-    const beforeParticles = this.particles.length;
-    const beforeTrailParticles = this.trailParticles.length;
-    
-    // Drastically reduce particle counts
-    const maxParticles = 5; // Reduced from 20
-    const maxTrailParticles = 3; // Reduced from 10
-    
-    if (this.particles.length > maxParticles) {
-        this.particles.splice(0, this.particles.length - maxParticles);
+    // EXTREME particle reduction
+    if (this.particles.length > 1) {
+        this.particles.splice(0, this.particles.length - 1); // Keep only 1 particle
     }
     
-    if (this.trailParticles.length > maxTrailParticles) {
-        this.trailParticles.splice(0, this.trailParticles.length - maxTrailParticles);
+    if (this.trailParticles.length > 0) {
+        this.trailParticles = []; // Remove ALL trail particles
     }
     
-    // Aggressive projectile limiting
-    if (this.projectiles.length > 2) { // Maximum 2 projectiles on mobile
-        this.projectiles.splice(0, this.projectiles.length - 2);
+    // EXTREME projectile limiting  
+    if (this.projectiles.length > 1) {
+        this.projectiles.splice(0, this.projectiles.length - 1); // Keep only 1 projectile
     }
     
-    // Clear analytics data more frequently
+    // Clear ALL analytics to free memory
     if (this.analytics) {
-        if (this.analytics.projectileAnalytics.length > 10) {
-            this.analytics.projectileAnalytics.splice(0, 5);
-        }
-        if (this.analytics.reactionTimeData.length > 10) {
-            this.analytics.reactionTimeData.splice(0, 5);
-        }
+        this.analytics.projectileAnalytics = [];
+        this.analytics.reactionTimeData = [];
+        this.analytics.defensePatterns = [];
     }
     
-    // Force garbage collection hint
+    // Clear message system
+    if (this.messageSystem) {
+        this.messageSystem.isActive = false;
+        this.messageSystem.currentMessage = '';
+    }
+    
+    // Force garbage collection
     if (window.gc) {
         try {
             window.gc();
-        } catch (e) {
-            // Ignore if gc not available
-        }
+        } catch (e) {}
     }
+    
+    console.log('Ultra-aggressive mobile cleanup performed');
 }
 
     /**
@@ -6151,6 +6225,20 @@ updateAtmosphericSystem(deltaTime) {
  * Main render function
  */
 render() {
+    // MOBILE: Skip render if conditions aren't perfect
+    if (this.currentState !== this.gameStates.GAMEPLAY) return;
+    
+    if (this.isMobile) {
+        // Skip render if browser is busy
+        if (performance.now() - this.lastRenderTime < 50) return; // Minimum 50ms between renders
+        this.lastRenderTime = performance.now();
+        
+        // Clear canvas more aggressively
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.fillStyle = '#87CEEB';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+
     // CRITICAL FIX: Immediate exit for problematic states
     // This prevents any rendering during game over transitions
     if (this.currentState === this.gameStates.GAME_OVER) {
