@@ -1422,62 +1422,169 @@ class StainSlayerAudioManager {
    async initializeAudio() {
     if (this.isInitialized) return;
     
+    // Skip audio entirely on problematic mobile browsers
+    if (this.game.isMobile && this.isProblematicMobileBrowser()) {
+        console.log('Skipping audio on problematic mobile browser');
+        this.isEnabled = false;
+        this.isInitialized = true;
+        return;
+    }
+    
     try {
         this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         
-        // Mobile-specific audio unlock
+        // Mobile-specific audio unlock with timeout and cleanup
         if (this.audioContext.state === 'suspended') {
-            // Wait for user interaction to unlock audio on mobile
-            const unlockAudio = async () => {
-                try {
-                    await this.audioContext.resume();
-                    console.log('Audio unlocked on mobile');
-                } catch (error) {
-                    console.warn('Failed to unlock audio:', error);
-                }
-                document.removeEventListener('touchstart', unlockAudio);
-                document.removeEventListener('touchend', unlockAudio);
-                document.removeEventListener('click', unlockAudio);
-            };
+            console.log('Audio context suspended, attempting unlock...');
             
-            document.addEventListener('touchstart', unlockAudio, { once: true });
-            document.addEventListener('touchend', unlockAudio, { once: true });
-            document.addEventListener('click', unlockAudio, { once: true });
+            // Create a promise that resolves with success/failure
+            const unlockPromise = new Promise((resolve) => {
+                let isUnlocked = false;
+                
+                const unlockAudio = async () => {
+                    if (isUnlocked) return; // Prevent multiple calls
+                    isUnlocked = true;
+                    
+                    try {
+                        await this.audioContext.resume();
+                        console.log('Audio unlocked successfully');
+                        resolve(true);
+                    } catch (error) {
+                        console.warn('Failed to unlock audio:', error);
+                        resolve(false);
+                    }
+                };
+                
+                // Single cleanup function
+                const cleanup = () => {
+                    document.removeEventListener('touchstart', unlockHandler);
+                    document.removeEventListener('touchend', unlockHandler);
+                    document.removeEventListener('click', unlockHandler);
+                };
+                
+                const unlockHandler = () => {
+                    unlockAudio();
+                    cleanup();
+                };
+                
+                // Add event listeners with automatic cleanup
+                document.addEventListener('touchstart', unlockHandler, { once: true, passive: true });
+                document.addEventListener('touchend', unlockHandler, { once: true, passive: true });
+                document.addEventListener('click', unlockHandler, { once: true, passive: true });
+                
+                // Timeout fallback to prevent hanging
+                setTimeout(() => {
+                    if (!isUnlocked) {
+                        console.warn('Audio unlock timed out');
+                        cleanup();
+                        resolve(false);
+                    }
+                }, 3000); // 3 second timeout
+            });
+            
+            // Wait for unlock attempt
+            const unlockSuccess = await unlockPromise;
+            if (!unlockSuccess) {
+                console.warn('Audio unlock failed, disabling audio');
+                this.isEnabled = false;
+            }
         }
         
         this.isInitialized = true;
         console.log('Audio system initialized for:', this.game.isMobile ? 'MOBILE' : 'DESKTOP');
         
-        // Mobile audio optimizations
+        // Apply mobile optimizations
         if (this.game.isMobile) {
-            this.maxConcurrentSounds = 4; // Reduce from 12 to 4
-            this.sfxVolume *= 0.6; // Reduce volume
-            this.musicVolume *= 0.5; // Reduce music volume
-            console.log('Mobile audio optimizations applied');
+            this.maxConcurrentSounds = 2; // Reduced from 4
+            this.sfxVolume *= 0.4; // Much lower volume
+            this.musicVolume *= 0.3;
+            console.log('Aggressive mobile audio optimizations applied');
         }
         
-        this.generateNoiseBuffers();
+        // Generate sound buffers (but skip on low-end devices)
+        if (!this.isLowEndDevice()) {
+            this.generateNoiseBuffers();
+        }
         
     } catch (error) {
-        console.warn('Audio initialization failed:', error);
+        console.warn('Audio initialization failed, disabling audio:', error);
         this.isEnabled = false;
+        this.isInitialized = true;
     }
 }
+
+/**
+ * Create StereoPanner with clamped pan value
+ * @param {number} pan - Pan value (-1 to 1)
+ * @returns {StereoPannerNode} Configured panner
+ */
+createStereoPanner(pan = 0) {
+    if (!this.audioContext) return null;
+    
+    const panner = this.audioContext.createStereoPanner();
+    const clampedPan = Math.max(-1, Math.min(1, pan || 0));
+    panner.pan.setValueAtTime(clampedPan, this.audioContext.currentTime);
+    return panner;
+}
+
+/**
+ * Clamp pan value to valid range
+ * @param {number} pan - Pan value
+ * @returns {number} Clamped pan value
+ */
+clampPanValue(pan) {
+    return Math.max(-1, Math.min(1, pan || 0));
+}
+
+    isProblematicMobileBrowser() {
+    const ua = navigator.userAgent.toLowerCase();
+    // Disable on older Android WebView or known problematic browsers
+    return ua.includes('android 4') || 
+           ua.includes('android 5') || 
+           ua.includes('samsungbrowser/') ||
+           ua.includes('miuibrowser/') ||
+           (ua.includes('chrome/') && ua.includes('mobile') && parseInt(ua.match(/chrome\/(\d+)/)[1]) < 70);
+}
+
+isLowEndDevice() {
+    // Check for low memory devices
+    if (navigator.deviceMemory && navigator.deviceMemory < 2) {
+        return true;
+    }
+    
+    // Check for older mobile devices
+    const ua = navigator.userAgent.toLowerCase();
+    if (ua.includes('android') && !ua.includes('android 1')) {
+        const match = ua.match(/android (\d+)/);
+        if (match && parseInt(match[1]) < 8) {
+            return true;
+        }
+    }
+    
+    return false;
+}     
+
 
     generateNoiseBuffers() {
     if (!this.audioContext) return;
     
     try {
-        // Pre-generate noise buffers for realistic sound effects
+        // Reduce buffer sizes for mobile
+        const bufferDurations = this.game.isMobile ? 
+            { short: 0.05, medium: 0.1, long: 0.3 } :
+            { short: 0.1, medium: 0.3, long: 1.0 };
+            
         this.noiseBuffers = {
-            short: this.generateNoiseBuffer(0.1),
-            medium: this.generateNoiseBuffer(0.3),
-            long: this.generateNoiseBuffer(1.0)
+            short: this.generateNoiseBuffer(bufferDurations.short),
+            medium: this.generateNoiseBuffer(bufferDurations.medium),
+            long: this.generateNoiseBuffer(bufferDurations.long)
         };
         console.log('Noise buffers generated successfully');
     } catch (error) {
         console.warn('Failed to generate noise buffers:', error);
         this.noiseBuffers = { short: null, medium: null, long: null };
+        // Disable audio if buffer generation fails
+        this.isEnabled = false;
     }
 }
 
@@ -1559,7 +1666,7 @@ generateNoiseBuffer(duration) {
         gainNode.gain.setValueAtTime(volume * intensity, now);
         gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
         
-        panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), now);
+        panner.pan.setValueAtTime(this.clampPanValue(pan), now);
         
         this.trackAndCleanupSource(noiseSource, now + 0.12);
         noiseSource.start(now);
@@ -1642,7 +1749,7 @@ generateNoiseBuffer(duration) {
         subGain.gain.setValueAtTime(volume * 0.7, now);
         subGain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
         
-        panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), now);
+        panner.pan.setValueAtTime(this.clampPanValue(pan), now);
         
         this.trackAndCleanupSource(thumpOsc, now + 0.35);
         this.trackAndCleanupSource(subOsc, now + 0.3);
@@ -1733,7 +1840,7 @@ generateNoiseBuffer(duration) {
         rockGain.gain.setValueAtTime(volume, now);
         rockGain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
         
-        panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), now);
+        panner.pan.setValueAtTime(this.clampPanValue(pan), now);
         
         this.trackAndCleanupSource(noiseSource, now + 0.08);
         this.trackAndCleanupSource(rockOsc, now + 0.25);
@@ -1769,7 +1876,7 @@ generateNoiseBuffer(duration) {
         gain.gain.setValueAtTime(volume * 0.7, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
         
-        panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), now);
+        panner.pan.setValueAtTime(this.clampPanValue(pan), now);
         
         this.trackAndCleanupSource(osc, now + 0.18);
         osc.start(now);
@@ -1807,7 +1914,7 @@ generateNoiseBuffer(duration) {
         gain.gain.setValueAtTime(volume * 0.8, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
         
-        panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), now);
+        panner.pan.setValueAtTime(this.clampPanValue(pan), now);
         
         this.trackAndCleanupSource(osc1, now + 0.15);
         this.trackAndCleanupSource(osc2, now + 0.15);
@@ -1843,7 +1950,7 @@ generateNoiseBuffer(duration) {
         gain.gain.setValueAtTime(volume, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
         
-        panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), now);
+        panner.pan.setValueAtTime(this.clampPanValue(pan), now);
         this.trackAndCleanupSource(osc, now + 0.12);
         osc.start(now);
         osc.stop(now + 0.12);
@@ -1970,7 +2077,7 @@ generateNoiseBuffer(duration) {
         gain.gain.setValueAtTime(volume * 0.9, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
         
-        panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), now);
+        panner.pan.setValueAtTime(this.clampPanValue(pan), now);
         
         this.trackAndCleanupSource(osc, now + 0.1);
         osc.start(now);
@@ -1984,7 +2091,7 @@ generateNoiseBuffer(duration) {
         const noiseSource = this.audioContext.createBufferSource();
         const filter = this.audioContext.createBiquadFilter();
         const gain = this.audioContext.createGain();
-        const panner = this.audioContext.createStereoPanner();
+        const panner = this.createStereoPanner(-pan);
         
         noiseSource.buffer = this.noiseBuffers.short;
         noiseSource.connect(filter);
@@ -2002,7 +2109,7 @@ generateNoiseBuffer(duration) {
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
         
         panner.pan.setValueAtTime(-pan, now);
-        panner.pan.linearRampToValueAtTime(pan, now + 0.15);
+        panner.pan.linearRampToValueAtTime(this.clampPanValue(pan), now + 0.15);
         
         this.trackAndCleanupSource(noiseSource, now + 0.15);
         noiseSource.start(now);
@@ -2042,7 +2149,7 @@ generateNoiseBuffer(duration) {
         
         gain.gain.setValueAtTime(volume * 0.8, now);
         
-        panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), now);
+        panner.pan.setValueAtTime(this.clampPanValue(pan), now);
         
         this.trackAndCleanupSource(osc, now + 0.5);
         this.trackAndCleanupSource(lfo, now + 0.5);
@@ -2104,7 +2211,7 @@ generateNoiseBuffer(duration) {
         gainNode.gain.linearRampToValueAtTime(volume, now + 0.04);
         gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
         
-        panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), now);
+        panner.pan.setValueAtTime(this.clampPanValue(pan), now);
         
         this.trackAndCleanupSource(mainOsc, now + 0.3);
         this.trackAndCleanupSource(harmonic1, now + 0.3);
@@ -2160,7 +2267,7 @@ generateNoiseBuffer(duration) {
         gain.gain.setValueAtTime(volume, now);
         gain.gain.linearRampToValueAtTime(volume * 0.7, now + 1.5);
         
-        panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), now);
+        panner.pan.setValueAtTime(this.clampPanValue(pan), now);
         
         this.trackAndCleanupSource(osc1, now + 1.5);
         this.trackAndCleanupSource(osc2, now + 1.5);
@@ -2234,7 +2341,7 @@ generateNoiseBuffer(duration) {
         gain.gain.setValueAtTime(volume * 0.6, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
         
-        panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), now);
+        panner.pan.setValueAtTime(this.clampPanValue(pan), now);
         
         this.trackAndCleanupSource(osc, now + 0.08);
         osc.start(now);
@@ -2304,7 +2411,7 @@ generateNoiseBuffer(duration) {
             gain.gain.setValueAtTime(volume, now + index * 0.08);
             gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4 + index * 0.08);
             
-            panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), now);
+            panner.pan.setValueAtTime(this.clampPanValue(pan), now);
             
             this.trackAndCleanupSource(osc, now + 0.5 + index * 0.08);
             osc.start(now + index * 0.08);
@@ -2443,14 +2550,14 @@ generateNoiseBuffer(duration) {
     }
 
     playPositionalSound(soundName, x, options = {}) {
-        const gameWidth = this.game.gameWidth || 1400;
-        const pan = (x / gameWidth - 0.5) * 2;
-        
-        this.playSound(soundName, {
-            ...options,
-            pan: pan
-        });
-    }
+    const gameWidth = this.game.gameWidth || 1400;
+    const pan = this.clampPanValue((x / gameWidth - 0.5) * 2);
+    
+    this.playSound(soundName, {
+        ...options,
+        pan: pan
+    });
+}
 
     // UTILITY METHODS
     trackAndCleanupSource(source, stopTime) {
@@ -2872,44 +2979,30 @@ class StainSlayerGame {
      * Initialize game systems
      */
     init() {
-    // Enhanced mobile detection that works with Chrome dev tools
+    // Enhanced mobile detection
     const userAgentMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     const screenSizeMobile = window.innerWidth < 768;
-    const touchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const touchDevice = 'ontouchstart' in window;
+    const lowMemory = navigator.deviceMemory && navigator.deviceMemory < 4; // Less than 4GB RAM
     
-    // Mobile if ANY of these conditions are true
     this.isMobile = userAgentMobile || screenSizeMobile || touchDevice;
+    this.isLowEndDevice = lowMemory || this.isMobile;
     
-    // Force mobile mode for testing (you can remove this later)
-    if (window.location.search.includes('mobile=true')) {
-        this.isMobile = true;
-        console.log('Mobile mode forced via URL parameter');
-    }
-    
+    // Ultra-conservative mobile optimizations
     this.mobileOptimizations = {
-        maxParticles: this.isMobile ? 20 : 200,
-        maxTrailParticles: this.isMobile ? 10 : 100,
-        maxProjectiles: this.isMobile ? 4 : 15,
-        reducedEffects: this.isMobile,
-        simplifiedRendering: this.isMobile,
-        frameSkip: this.isMobile ? 2 : 1,
-        skipScreenEffects: this.isMobile,
-        skipAtmospheric: this.isMobile,
-        skipEnhancedTrails: this.isMobile,
-        skipAnalytics: this.isMobile
+        maxParticles: this.isLowEndDevice ? 3 : 10,
+        maxTrailParticles: this.isLowEndDevice ? 2 : 5,
+        maxProjectiles: this.isLowEndDevice ? 1 : 2,
+        frameSkip: this.isLowEndDevice ? 3 : 2, // Skip more frames
+        skipScreenEffects: true,
+        skipAtmospheric: true,
+        skipEnhancedTrails: true,
+        skipAnalytics: this.isLowEndDevice
     };
     
-    this.renderFrameId = 0;
-    this.lastOptimizationCheck = 0;
-    
-    console.log('Mobile detection results:');
-    console.log('- User Agent Mobile:', userAgentMobile);
-    console.log('- Screen Size Mobile:', screenSizeMobile, '(width:', window.innerWidth, ')');
-    console.log('- Touch Device:', touchDevice);
-    console.log('- Final Mobile Status:', this.isMobile);
-    
     if (this.isMobile) {
-        console.log('Mobile optimizations applied:', this.mobileOptimizations);
+        console.log('Mobile device detected with aggressive optimizations');
+        console.log('Optimizations:', this.mobileOptimizations);
     }
     
     this.setupCanvas();
@@ -3030,77 +3123,65 @@ createAtmosphericParticle() {
      */
    setupCanvas() {
     const resizeCanvas = () => {
-        let containerWidth, containerHeight;
-        
-        if (this.isMobile) {
-            // Mobile-specific viewport handling
-            containerWidth = window.innerWidth;
-            containerHeight = window.innerHeight;
+        try {
+            let containerWidth, containerHeight;
             
-            // Handle mobile browser UI variations (address bar, etc.)
-            if (window.visualViewport && window.visualViewport.height) {
-                containerHeight = window.visualViewport.height;
+            if (this.isMobile) {
+                containerWidth = Math.min(window.innerWidth, 800); // Cap mobile width
+                containerHeight = Math.min(window.innerHeight, 600); // Cap mobile height
+                
+                // Handle mobile viewport issues more safely
+                if (window.visualViewport && window.visualViewport.height) {
+                    containerHeight = Math.min(window.visualViewport.height, 600);
+                }
+            } else {
+                containerWidth = window.innerWidth;
+                containerHeight = window.innerHeight;
             }
             
-            // Ensure viewport meta tag is properly set for mobile
-            let viewport = document.querySelector('meta[name="viewport"]');
-            if (!viewport) {
-                viewport = document.createElement('meta');
-                viewport.name = 'viewport';
-                document.head.appendChild(viewport);
-            }
-            viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
+            this.canvas.width = containerWidth;
+            this.canvas.height = containerHeight;
+            this.canvas.style.width = containerWidth + 'px';
+            this.canvas.style.height = containerHeight + 'px';
             
-            console.log('Mobile canvas resized to:', containerWidth, 'x', containerHeight);
-        } else {
-            // Desktop handling
-            containerWidth = window.innerWidth;
-            containerHeight = window.innerHeight;
+            this.gameWidth = containerWidth;
+            this.gameHeight = containerHeight;
+            
+            this.canvasRect = this.canvas.getBoundingClientRect();
+            
+        } catch (error) {
+            console.error('Canvas resize error:', error);
+            // Fallback dimensions
+            this.canvas.width = 800;
+            this.canvas.height = 600;
+            this.gameWidth = 800;
+            this.gameHeight = 600;
         }
-        
-        this.canvas.width = containerWidth;
-        this.canvas.height = containerHeight;
-        this.canvas.style.width = containerWidth + 'px';
-        this.canvas.style.height = containerHeight + 'px';
-        
-        this.gameWidth = containerWidth;
-        this.gameHeight = containerHeight;
-        
-        this.canvasScale = 1;
-        this.canvasRect = this.canvas.getBoundingClientRect();
     };
     
     resizeCanvas();
     
-    // Debounced resize for mobile performance
+    // Debounced resize for mobile with error handling
     let resizeTimeout;
     window.addEventListener('resize', () => {
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
-            resizeCanvas();
-            this.canvasRect = this.canvas.getBoundingClientRect();
-            
-            if (this.currentState === this.gameStates.GAMEPLAY) {
-                this.repositionCharacters();
+            try {
+                resizeCanvas();
+                if (this.currentState === this.gameStates.GAMEPLAY) {
+                    this.repositionCharacters();
+                }
+            } catch (error) {
+                console.error('Resize handler error:', error);
             }
-        }, this.isMobile ? 200 : 100); // Longer delay on mobile
+        }, this.isMobile ? 300 : 100); // Longer delay on mobile
     });
-    
-    // Prevent context menu on long press (mobile)
-    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-    
-    // Prevent scrolling when touching the game canvas
-    document.addEventListener('touchmove', (e) => {
-        if (e.target === this.canvas || e.target.closest('#gameContainer')) {
-            e.preventDefault();
-        }
-    }, { passive: false });
 }
     /**
      * Setup event listeners for input handling
      */
-   setupEventListeners() {
-    // Keyboard events
+setupEventListeners() {
+    // Keyboard events (unchanged)
     window.addEventListener('keydown', (e) => {
         this.keys[e.code] = true;
         if (e.code === 'Space') {
@@ -3113,7 +3194,7 @@ createAtmosphericParticle() {
         this.keys[e.code] = false;
     });
     
-    // Mouse events
+    // Mouse events (unchanged)
     this.canvas.addEventListener('mousedown', (e) => {
         this.activateShield();
     });
@@ -3124,97 +3205,152 @@ createAtmosphericParticle() {
         this.mouse.y = (e.clientY - rect.top) * (this.canvas.height / rect.height);
     });
     
-    // Enhanced Touch Events with Movement Controls
+    // SAFER TOUCH EVENTS - Replace your existing touch handlers with these:
     let touchStartPos = { x: 0, y: 0 };
-    let touchMoveThreshold = 30; // pixels needed to register movement
+    let touchMoveThreshold = 30;
     let isMoving = false;
+    let touchActive = false; // Prevent overlapping touches
     
     this.canvas.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const touch = e.touches[0];
-        const rect = this.canvas.getBoundingClientRect();
-        
-        // Store touch start position
-        touchStartPos.x = touch.clientX;
-        touchStartPos.y = touch.clientY;
-        isMoving = false;
-        
-        // Update mouse position for shield activation
-        this.mouse.x = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
-        this.mouse.y = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
-        
-        // Activate shield on touch
-        this.activateShield();
-        
-        console.log('Touch shield activated at:', this.mouse.x.toFixed(0), this.mouse.y.toFixed(0));
+        try {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Only handle single touch
+            if (e.touches.length !== 1 || touchActive) {
+                return;
+            }
+            
+            touchActive = true;
+            const touch = e.touches[0];
+            const rect = this.canvas.getBoundingClientRect();
+            
+            // Store touch start position
+            touchStartPos.x = touch.clientX;
+            touchStartPos.y = touch.clientY;
+            isMoving = false;
+            
+            // Update mouse position for shield activation
+            this.mouse.x = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
+            this.mouse.y = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
+            
+            // Activate shield on touch
+            this.activateShield();
+            
+            // Remove console.log to improve mobile performance
+            // console.log('Touch shield activated at:', this.mouse.x.toFixed(0), this.mouse.y.toFixed(0));
+            
+        } catch (error) {
+            console.warn('Touch start error:', error);
+            touchActive = false;
+        }
     }, { passive: false });
     
     this.canvas.addEventListener('touchmove', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const touch = e.touches[0];
-        const rect = this.canvas.getBoundingClientRect();
-        
-        // Update mouse position continuously
-        this.mouse.x = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
-        this.mouse.y = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
-        
-        // Calculate movement from start position
-        const deltaX = touch.clientX - touchStartPos.x;
-        const deltaY = touch.clientY - touchStartPos.y;
-        
-        // Clear all movement keys first
-        this.keys['KeyW'] = this.keys['ArrowUp'] = false;
-        this.keys['KeyS'] = this.keys['ArrowDown'] = false;
-        this.keys['KeyA'] = this.keys['ArrowLeft'] = false;
-        this.keys['KeyD'] = this.keys['ArrowRight'] = false;
-        
-        // Apply movement based on swipe direction
-        if (Math.abs(deltaX) > touchMoveThreshold) {
-            isMoving = true;
-            if (deltaX < 0) {
-                this.keys['KeyA'] = this.keys['ArrowLeft'] = true;
-                console.log('Touch move: LEFT');
-            } else {
-                this.keys['KeyD'] = this.keys['ArrowRight'] = true;
-                console.log('Touch move: RIGHT');
+        try {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Only handle single touch and if touch is active
+            if (e.touches.length !== 1 || !touchActive) {
+                return;
             }
-        }
-        
-        if (Math.abs(deltaY) > touchMoveThreshold) {
-            isMoving = true;
-            if (deltaY < 0) {
-                this.keys['KeyW'] = this.keys['ArrowUp'] = true;
-                console.log('Touch move: UP');
-            } else {
-                this.keys['KeyS'] = this.keys['ArrowDown'] = true;
-                console.log('Touch move: DOWN');
+            
+            const touch = e.touches[0];
+            const rect = this.canvas.getBoundingClientRect();
+            
+            // Update mouse position continuously
+            this.mouse.x = (touch.clientX - rect.left) * (this.canvas.width / rect.width);
+            this.mouse.y = (touch.clientY - rect.top) * (this.canvas.height / rect.height);
+            
+            // Calculate movement from start position
+            const deltaX = touch.clientX - touchStartPos.x;
+            const deltaY = touch.clientY - touchStartPos.y;
+            
+            // Clear all movement keys first
+            this.keys['KeyW'] = this.keys['ArrowUp'] = false;
+            this.keys['KeyS'] = this.keys['ArrowDown'] = false;
+            this.keys['KeyA'] = this.keys['ArrowLeft'] = false;
+            this.keys['KeyD'] = this.keys['ArrowRight'] = false;
+            
+            // FIXED: Prioritize the dominant direction to prevent conflicts
+            const absDeltaX = Math.abs(deltaX);
+            const absDeltaY = Math.abs(deltaY);
+            
+            if (absDeltaX > touchMoveThreshold || absDeltaY > touchMoveThreshold) {
+                isMoving = true;
+                
+                // Apply movement based on dominant direction only
+                if (absDeltaX > absDeltaY) {
+                    // Horizontal movement dominates
+                    if (deltaX < 0) {
+                        this.keys['KeyA'] = this.keys['ArrowLeft'] = true;
+                    } else {
+                        this.keys['KeyD'] = this.keys['ArrowRight'] = true;
+                    }
+                } else {
+                    // Vertical movement dominates
+                    if (deltaY < 0) {
+                        this.keys['KeyW'] = this.keys['ArrowUp'] = true;
+                    } else {
+                        this.keys['KeyS'] = this.keys['ArrowDown'] = true;
+                    }
+                }
             }
+            
+        } catch (error) {
+            console.warn('Touch move error:', error);
+            // Clear movement on error
+            this.keys['KeyW'] = this.keys['ArrowUp'] = false;
+            this.keys['KeyS'] = this.keys['ArrowDown'] = false;
+            this.keys['KeyA'] = this.keys['ArrowLeft'] = false;
+            this.keys['KeyD'] = this.keys['ArrowRight'] = false;
         }
-        
     }, { passive: false });
     
     this.canvas.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Clear all movement keys when touch ends
-        this.keys['KeyW'] = this.keys['ArrowUp'] = false;
-        this.keys['KeyS'] = this.keys['ArrowDown'] = false;
-        this.keys['KeyA'] = this.keys['ArrowLeft'] = false;
-        this.keys['KeyD'] = this.keys['ArrowRight'] = false;
-        
-        if (isMoving) {
-            console.log('Touch movement cleared');
+        try {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            touchActive = false;
+            
+            // Clear all movement keys when touch ends
+            this.keys['KeyW'] = this.keys['ArrowUp'] = false;
+            this.keys['KeyS'] = this.keys['ArrowDown'] = false;
+            this.keys['KeyA'] = this.keys['ArrowLeft'] = false;
+            this.keys['KeyD'] = this.keys['ArrowRight'] = false;
+            
+            isMoving = false;
+            
+            // Remove console.log for mobile performance
+            // console.log('Touch movement cleared');
+            
+        } catch (error) {
+            console.warn('Touch end error:', error);
+            touchActive = false;
+            isMoving = false;
         }
-        isMoving = false;
-        
     }, { passive: false });
     
-    // UI button events
+    // Add touchcancel handler to reset state if touch is interrupted
+    this.canvas.addEventListener('touchcancel', (e) => {
+        try {
+            touchActive = false;
+            isMoving = false;
+            
+            // Clear all movement keys
+            this.keys['KeyW'] = this.keys['ArrowUp'] = false;
+            this.keys['KeyS'] = this.keys['ArrowDown'] = false;
+            this.keys['KeyA'] = this.keys['ArrowLeft'] = false;
+            this.keys['KeyD'] = this.keys['ArrowRight'] = false;
+            
+        } catch (error) {
+            console.warn('Touch cancel error:', error);
+        }
+    }, { passive: false });
+    
+    // UI button events (unchanged)
     const startButton = document.getElementById('startButton');
     const blinkitButton = document.getElementById('blinkitButton');
     
@@ -3226,34 +3362,66 @@ createAtmosphericParticle() {
         blinkitButton.addEventListener('click', () => this.openBlinkit());
     }
 
-    // Audio toggle click handler
+    // SAFER Audio toggle click handler
     const audioToggle = document.getElementById('audioToggle');
     if (audioToggle) {
         audioToggle.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            if (this.audioManager) {
-                const isMuted = this.audioManager.toggleMute();
-                const audioIcon = audioToggle.querySelector('.audio-icon');
+            try {
+                e.preventDefault();
+                e.stopPropagation();
                 
-                if (audioIcon) {
-                    audioIcon.textContent = isMuted ? '🔇' : '🔊';
+                if (this.audioManager) {
+                    const isMuted = this.audioManager.toggleMute();
+                    const audioIcon = audioToggle.querySelector('.audio-icon');
+                    
+                    if (audioIcon) {
+                        audioIcon.textContent = isMuted ? '🔇' : '🔊';
+                    }
+                    
+                    audioToggle.classList.toggle('muted', isMuted);
+                    
+                    // Play UI feedback sound when unmuting (with error handling)
+                    if (!isMuted && this.audioManager.isEnabled) {
+                        setTimeout(() => {
+                            try {
+                                this.audioManager.playSound('pop', { volume: 0.5 });
+                            } catch (audioError) {
+                                console.warn('Audio feedback failed:', audioError);
+                            }
+                        }, 100);
+                    }
                 }
-                
-                audioToggle.classList.toggle('muted', isMuted);
-                
-                // Play UI feedback sound when unmuting
-                if (!isMuted) {
-                    setTimeout(() => {
-                        this.audioManager.playSound('pop', { volume: 0.5 });
-                    }, 100);
-                }
+            } catch (error) {
+                console.warn('Audio toggle error:', error);
+            }
+        });
+    }
+
+    // Add window focus/blur handlers to pause game on focus loss (mobile optimization)
+    if (this.isMobile) {
+        window.addEventListener('blur', () => {
+            // Clear all input states when app loses focus
+            this.keys = {};
+            touchActive = false;
+            isMoving = false;
+        });
+        
+        window.addEventListener('focus', () => {
+            // Reset input states when app regains focus
+            this.keys = {};
+        });
+        
+        // Handle page visibility changes (when user switches tabs/apps)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                // Clear all inputs when page becomes hidden
+                this.keys = {};
+                touchActive = false;
+                isMoving = false;
             }
         });
     }
 }
-
     /**
      * Load game assets with progress tracking
      */
@@ -4271,93 +4439,77 @@ playResultsSound(rating) {
     /**
      * Start the main game loop
      */
-  startGameLoop() {
+  // 3. SAFER GAME LOOP WITH MOBILE SAFEGUARDS
+startGameLoop() {
     let frameCount = 0;
     let lastFPSTime = performance.now();
-    let frameSkipCounter = 0; // Mobile frame skipper counter
-    this.gameLoopId = null; // Add this to track the animation frame
+    let frameSkipCounter = 0;
+    let errorCount = 0;
+    const maxErrors = 10;
+    
+    this.gameLoopId = null;
     
     const gameLoop = (currentTime) => {
-        // CRITICAL: Clear the stored animation frame ID immediately
         this.gameLoopId = null;
-
-          // Mobile frame skipping for 30fps instead of 60fps
-        if (this.isMobile) {
-            frameSkipCounter++;
-            if (frameSkipCounter < this.mobileOptimizations.frameSkip) {
-                this.gameLoopId = requestAnimationFrame(gameLoop);
-                return; // Skip this frame
-            }
-            frameSkipCounter = 0; // Reset counter after processing frame
-        }
-        
-        // ENHANCED EXIT CHECK: Multiple conditions to prevent brown overlay
-        if (!this.isRunning || 
-            this.currentState === this.gameStates.GAME_OVER ||
-            this.politicianHealth <= 0) {
-            console.log("🛑 Game loop stopped: Enhanced exit condition triggered");
-            
-            // IMMEDIATE CLEANUP when exiting
-            if (this.canvas && this.ctx) {
-                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-                this.canvas.style.display = 'none';
-            }
-            return; // Don't schedule another frame
-        }
-        
-        const frameStart = performance.now();
-        
-        this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.016);
-        this.lastTime = currentTime;
         
         try {
+            // Enhanced exit conditions for mobile stability
+            if (!this.isRunning || 
+                this.currentState === this.gameStates.GAME_OVER ||
+                this.politicianHealth <= 0 ||
+                errorCount >= maxErrors) {
+                
+                console.log("Game loop stopped - cleanup initiated");
+                this.stopGameLoop();
+                return;
+            }
+            
+            // Mobile frame skipping with safety checks
+            if (this.isMobile) {
+                frameSkipCounter++;
+                if (frameSkipCounter < this.mobileOptimizations.frameSkip) {
+                    this.gameLoopId = requestAnimationFrame(gameLoop);
+                    return;
+                }
+                frameSkipCounter = 0;
+            }
+            
+            const frameStart = performance.now();
+            
+            this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.033); // Cap at 30fps
+            this.lastTime = currentTime;
+            
             this.update(this.deltaTime);
             this.render();
-        } catch (error) {
-            this.debugLog('error', 'Game loop error', error);
-            console.error('Game loop crashed:', error);
             
-            // ENHANCED ERROR HANDLING: Clean up on crash
-            this.isRunning = false;
-            this.currentState = this.gameStates.GAME_OVER;
-            if (this.canvas && this.ctx) {
-                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-                this.canvas.style.display = 'none';
+            // Performance monitoring for mobile
+            const frameTime = performance.now() - frameStart;
+            if (this.isMobile && frameTime > 33) { // Frame took longer than 33ms
+                console.warn(`Slow mobile frame: ${frameTime.toFixed(2)}ms`);
             }
-            return;
-        }
-        
-       // Performance monitoring - skip on mobile for better performance
-if (!this.isMobile) {
-    frameCount++;
-    if (currentTime - lastFPSTime >= 1000) {
-        const currentFPS = frameCount;
-        this.debugLog('debug', `FPS: ${currentFPS}, Projectiles: ${this.projectiles.length}, Particles: ${this.particles.length + this.trailParticles.length}`);
-        this.analytics.trackPerformanceMetrics(currentFPS);
-        frameCount = 0;
-        lastFPSTime = currentTime;
-    }
-    
-    const frameTime = performance.now() - frameStart;
-    if (frameTime > 16.67) {
-        this.debugLog('warn', `Slow frame detected: ${frameTime.toFixed(2)}ms`);
-    }
-}
-        
-        // ENHANCED CONTINUATION CHECK: Only continue if multiple conditions are met
-        if (this.isRunning && 
-            this.currentState === this.gameStates.GAMEPLAY && 
-            this.politicianHealth > 0) {
-            this.gameLoopId = requestAnimationFrame(gameLoop);
-        } else {
-            console.log("🛑 Game loop natural termination - Conditions no longer met");
-            this.stopGameLoop();
+            
+            // Continue loop only if still running
+            if (this.isRunning && this.currentState === this.gameStates.GAMEPLAY && this.politicianHealth > 0) {
+                this.gameLoopId = requestAnimationFrame(gameLoop);
+            }
+            
+        } catch (error) {
+            errorCount++;
+            console.error(`Game loop error ${errorCount}/${maxErrors}:`, error);
+            
+            if (errorCount < maxErrors) {
+                // Try to continue after error
+                this.gameLoopId = requestAnimationFrame(gameLoop);
+            } else {
+                console.error('Too many errors, stopping game loop');
+                this.stopGameLoop();
+            }
         }
     };
     
-    this.debugLog('info', 'Enhanced game loop started with brown overlay prevention');
     this.gameLoopId = requestAnimationFrame(gameLoop);
 }
+
 
 stopGameLoop() {
     console.log('🛑 stopGameLoop() - Comprehensive cleanup initiated');
@@ -4510,50 +4662,49 @@ stopGameLoop() {
     }
     }
   
- // ADD THIS ENTIRE METHOD after the update() method
+// 4. AGGRESSIVE MOBILE MEMORY MANAGEMENT
 optimizeMemoryForMobile() {
     if (!this.isMobile) return;
     
+    // More aggressive cleanup
     const beforeParticles = this.particles.length;
     const beforeTrailParticles = this.trailParticles.length;
-    const beforeProjectiles = this.projectiles.length;
     
-    // Aggressively limit particles
-    if (this.particles.length > this.mobileOptimizations.maxParticles) {
-        const excess = this.particles.length - this.mobileOptimizations.maxParticles;
-        this.particles.splice(0, excess);
+    // Drastically reduce particle counts
+    const maxParticles = 5; // Reduced from 20
+    const maxTrailParticles = 3; // Reduced from 10
+    
+    if (this.particles.length > maxParticles) {
+        this.particles.splice(0, this.particles.length - maxParticles);
     }
     
-    if (this.trailParticles.length > this.mobileOptimizations.maxTrailParticles) {
-        const excess = this.trailParticles.length - this.mobileOptimizations.maxTrailParticles;
-        this.trailParticles.splice(0, excess);
+    if (this.trailParticles.length > maxTrailParticles) {
+        this.trailParticles.splice(0, this.trailParticles.length - maxTrailParticles);
     }
     
-    // Limit projectiles if spawning too many
-    if (this.projectiles.length > this.mobileOptimizations.maxProjectiles) {
-        const excess = this.projectiles.length - this.mobileOptimizations.maxProjectiles;
-        this.projectiles.splice(0, excess);
+    // Aggressive projectile limiting
+    if (this.projectiles.length > 2) { // Maximum 2 projectiles on mobile
+        this.projectiles.splice(0, this.projectiles.length - 2);
     }
     
-    // Clean up analytics data on mobile to prevent memory bloat
-    if (this.analytics && this.analytics.projectileAnalytics.length > 20) {
-        this.analytics.projectileAnalytics.splice(0, 10); // Remove oldest 10 entries
+    // Clear analytics data more frequently
+    if (this.analytics) {
+        if (this.analytics.projectileAnalytics.length > 10) {
+            this.analytics.projectileAnalytics.splice(0, 5);
+        }
+        if (this.analytics.reactionTimeData.length > 10) {
+            this.analytics.reactionTimeData.splice(0, 5);
+        }
     }
     
-    // Clean up old reaction time data
-    if (this.analytics && this.analytics.reactionTimeData.length > 30) {
-        this.analytics.reactionTimeData.splice(0, 15); // Remove oldest 15 entries
+    // Force garbage collection hint
+    if (window.gc) {
+        try {
+            window.gc();
+        } catch (e) {
+            // Ignore if gc not available
+        }
     }
-    
-    // Clean up defense patterns
-    if (this.defensePatterns && this.defensePatterns.length > 50) {
-        this.defensePatterns.splice(0, 25); // Remove oldest 25 entries
-    }
-    
-    console.log(`Mobile memory optimized:
-        Particles: ${beforeParticles} → ${this.particles.length}
-        Trail Particles: ${beforeTrailParticles} → ${this.trailParticles.length} 
-        Projectiles: ${beforeProjectiles} → ${this.projectiles.length}`);
 }
 
     /**
