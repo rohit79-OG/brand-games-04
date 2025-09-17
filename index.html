@@ -6683,6 +6683,11 @@ drawBuildingLayer(groundY, scale, color, heightVariation) {
  * Draw atmospheric particles
  */
 drawAtmosphericParticles() {
+     // MOBILE: Skip atmospheric particles entirely
+    if (this.isMobile) {
+        return;
+    }
+
     const particles = this.atmosphericSystem.particles;
     const wind = this.atmosphericSystem.wind;
     
@@ -6948,6 +6953,11 @@ drawForegroundCrowd() {
  * Draw animated procedural clouds
  */
 drawAnimatedClouds() {
+    // MOBILE: Skip animated clouds
+    if (this.isMobile) {
+        return;
+    }
+    
     const time = this.crowdAnimation.time * 0.0003; // Slower than crowd animation
     
     // Define cloud positions and properties
@@ -8385,6 +8395,11 @@ darkenColor(color, factor) {
  * Draw particles
  */
 drawParticles() {
+    // MOBILE: Skip all particle effects
+    if (this.isMobile) {
+        return;
+    }
+
     this.drawTrailParticles();
     
     this.particles.forEach(particle => {
@@ -8421,6 +8436,11 @@ drawParticles() {
      * Draw trail particles
      */
     drawTrailParticles() {
+         // MOBILE: Skip trail particles
+    if (this.isMobile) {
+        return;
+    }
+    
         this.trailParticles.forEach(particle => {
             this.ctx.save();
             this.ctx.globalAlpha = particle.alpha;
@@ -8438,6 +8458,10 @@ drawParticles() {
      * Draw visual effects
      */
     drawEffects() {
+        // MOBILE: Skip all screen effects
+    if (this.isMobile) {
+        return;
+    }
         // Slow motion effect
         if (this.activePowers.slowmo > 0) {
             this.ctx.save();
@@ -8697,8 +8721,9 @@ drawSplatterDrip(x, y, size) {
      * @param {number} vy - Y velocity
      */
    createTrailParticle(x, y, vx, vy) {
-    // Mobile optimization: drastically reduce particles
-    if (this.isMobile && Math.random() < 0.85) return; // Skip 85% of particles on mobile
+      // MOBILE: Skip ALL trail particle creation
+    if (this.isMobile) return;
+
     
     const particle = {
         x: x,
