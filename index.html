@@ -9,6 +9,32 @@
     <title>Stain Slayer - Godrej Fab Game</title>
     
     <style>
+
+/* iOS Safari specific fix */
+@supports (-webkit-touch-callout: none) {
+    html, body {
+        background: linear-gradient(135deg, #FFD400, #FFA500) !important;
+        background-attachment: fixed !important;
+    }
+    
+    body::before {
+        content: '';
+        position: fixed;
+        top: -100px;
+        left: 0;
+        right: 0;
+        height: 100px;
+        background: linear-gradient(135deg, #FFD400, #FFA500);
+        z-index: 10000;
+    }
+}
+
+/* Force viewport background for all mobile browsers */
+html {
+    background: linear-gradient(135deg, #FFD400, #FFA500) !important;
+    min-height: 100vh;
+}
+
 /* ============================================
    GAME CSS 
    ============================================ */
@@ -30,10 +56,6 @@ body {
     user-select: none;
     -webkit-user-select: none;
     height: 100vh;
-}
-
-html {
-    background: linear-gradient(135deg, #FFD400, #FFA500) !important;
 }
 
 /* GAME CONTAINER - Transparent to show background */
