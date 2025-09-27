@@ -383,26 +383,43 @@
             }
         }
 
-        /* Force mobile notification positioning */
+        .mobile-notification-container {
+    position: fixed;
+    top: 65px;
+    right: 15px;
+    z-index: 9999;
+    max-width: 200px;
+    display: none;
+}
+
 @media (max-width: 768px) {
-    #unifiedNotificationContainer {
-        position: fixed !important;
-        top: 60px !important;
-        right: 15px !important;
-        left: auto !important;
-        transform: none !important;
-        max-width: 200px !important;
-    }
-    
-    #unifiedNotificationContainer > div {
-        font-size: 0.75em !important;
-        padding: 8px 12px !important;
-        text-align: right !important;
-        border-radius: 8px !important;
-        max-width: 200px !important;
+    .mobile-notification-container {
+        display: block;
     }
 }
 
+.mobile-notification-item {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: white;
+    font-weight: bold;
+    font-size: 0.75em;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    text-align: right;
+    margin-bottom: 5px;
+    opacity: 0;
+    transform: translateX(20px);
+    transition: all 0.3s ease;
+}
+
+.mobile-notification-item.show {
+    opacity: 1;
+    transform: translateX(0);
+} 
+     
         /* Stage-Specific Mechanics Styles */
         .stage-mechanic {
             position: fixed;
@@ -1353,6 +1370,10 @@
      <!-- Mobile Score Display -->
     <div id="mobileScoreDisplay" class="mobile-score-display">
         Score: <span id="mobileScoreValue">0</span>
+    </div>
+
+    <!-- Mobile-only notification container -->
+    <div id="mobileNotificationContainer" class="mobile-notification-container">
     </div>
 
     <!-- Stage Indicator -->
@@ -5569,7 +5590,6 @@ activateFABBomb() {
                 
                 // Spawn power hit after warning
                 setTimeout(() => {
-                    this.queueNotification('⚡ POWER HIT INCOMING! ⚡', 1500);
                     const powerHit = this.createProjectile();
                     powerHit.scale.set(1.5, 1.5, 1.5); // Bigger
                     powerHit.velocity.multiplyScalar(2); // Much faster
@@ -6342,25 +6362,38 @@ displayNotification(notification) {
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
             text-align: ${textAlign};
             max-width: ${maxWidth};
-            animation: notificationFadeIn 0.3s ease;
         ">${notification.message}</div>
     `;
     
-    // Apply positioning and show
-    setTimeout(() => {
-        this.notificationContainer.style.cssText = `
-            position: fixed !important;
-            top: ${topPosition} !important;
-            left: ${leftPosition} !important;
-            right: ${rightPosition} !important;
-            transform: ${transform} !important;
-            z-index: 9999 !important;
-            pointer-events: none;
-            display: block !important;
-        `;
-        
-        console.log("Applied positioning:", topPosition, "Display:", this.notificationContainer.style.display);
-    }, 10);
+    // Apply positioning and show - individual properties
+setTimeout(() => {
+    const container = this.notificationContainer;
+    
+    // Clear conflicting styles first
+    container.style.left = '';
+    container.style.right = '';
+    container.style.transform = '';
+    
+    // Set new positioning
+    container.style.position = 'fixed';
+    container.style.zIndex = '9999';
+    container.style.pointerEvents = 'none';
+    container.style.display = 'block';
+    
+    if (isMobileScreen) {
+        container.style.top = '60px';
+        container.style.right = '15px';
+        container.style.left = 'auto';
+        container.style.transform = 'none';
+    } else {
+        container.style.top = '120px';
+        container.style.left = '50%';
+        container.style.right = 'auto';
+        container.style.transform = 'translateX(-50%)';
+    }
+    
+    console.log("Applied positioning - top:", container.style.top, "right:", container.style.right);
+}, 10);
     
     // Faster fade for mobile, normal for desktop
     const displayDuration = isMobileScreen ? notification.duration * 0.6 : notification.duration;
@@ -6375,8 +6408,45 @@ displayNotification(notification) {
     }, displayDuration);
 }
     
-   showNotification(message) {
-    this.queueNotification(message);
+showNotification(message) {
+    const isMobileScreen = window.innerWidth <= 768;
+    
+    if (isMobileScreen) {
+        this.showMobileNotification(message);
+    } else {
+        this.queueNotification(message);
+    }
+}
+
+showMobileNotification(message) {
+    const container = document.getElementById('mobileNotificationContainer');
+    if (!container) {
+        console.log('Mobile notification container not found');
+        return;
+    }
+    
+    console.log('Creating mobile notification:', message);
+    
+    const notification = document.createElement('div');
+    notification.className = 'mobile-notification-item';
+    notification.textContent = message;
+    
+    container.appendChild(notification);
+    
+    // Animate in
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 10);
+    
+    // Remove after duration
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => {
+            if (notification.parentNode) {
+                container.removeChild(notification);
+            }
+        }, 300);
+    }, 1500);
 }
     
     updatePowerBar() {
@@ -6415,66 +6485,58 @@ displayNotification(notification) {
         }
     }
     
-    transitionToStage(newStage) {
-        this.currentStage = newStage;
-        this.createStageBackground(newStage);
-        this.createStageSpecificCrowd(newStage);
-        this.createPodium(newStage);
-        this.scene.add(this.podium);
+   transitionToStage(newStage) {
+    this.currentStage = newStage;
+    this.createStageBackground(newStage);
+    this.createStageSpecificCrowd(newStage);
+    this.createPodium(newStage);
+    this.scene.add(this.podium);
 
-        // Handle animated clouds for stage transitions
+    // Handle animated clouds for stage transitions
     if (this.currentStage === 'rally' && newStage !== 'rally') {
         this.removeAnimatedClouds();
     } else if (newStage === 'rally') {
-    this.createAnimatedClouds();
-     }
-        
-        const stageNames = {
-            'rally': 'Political Rally',
-            'street': 'Street Fundraiser',
-            'wedding': 'Wedding Celebration',
-            'cricket': 'Cricket Match',
-            'debate': 'Debate Studio'
-        };
-        
-        const stageIndicator = document.getElementById('stageIndicator');
-        const stageName = document.getElementById('stageName');
-        if (stageIndicator && stageName) {
-            stageName.textContent = stageNames[newStage];
-            stageIndicator.classList.add('show');
-            setTimeout(() => {
-                stageIndicator.classList.remove('show');
-            }, 3000);
-        }
-        
-        // Clear stains and obstacles on transition
-        this.stains.forEach(stain => this.scene.remove(stain));
-        this.stains = [];
-        this.obstacles.forEach(obstacle => this.scene.remove(obstacle));
-        this.obstacles = [];
-        
-        // Reset stage-specific values
-        this.crowdMood = 50;
-        this.splatterMeter = 0;
-        this.perceptionMeter = 50;
-        this.greaseBlurActive = false;
-        this.flashDazeActive = false;
-        
-        // Show appropriate stage mechanics UI
-        this.showStageMechanics(newStage);
-        
-        // Change music to new stage
-        this.startStageMusic();
-        
-        // Play transition sound
-        this.playSound('powerup');
-        
-        // Increase difficulty
-        this.projectileInterval = Math.max(500, this.projectileInterval - 120);
-         // Check stage-related achievements immediately
-        this.checkAchievements()
+        this.createAnimatedClouds();
     }
-
+    
+    const stageNames = {
+        'rally': 'Political Rally',
+        'street': 'Street Fundraiser',
+        'wedding': 'Wedding Celebration',
+        'cricket': 'Cricket Match',
+        'debate': 'Debate Studio'
+    };
+    
+    // Use notification system instead of center stage indicator
+    this.showNotification(`Entering ${stageNames[newStage]}`);
+    
+    // Clear stains and obstacles on transition
+    this.stains.forEach(stain => this.scene.remove(stain));
+    this.stains = [];
+    this.obstacles.forEach(obstacle => this.scene.remove(obstacle));
+    this.obstacles = [];
+    
+    // Reset stage-specific values
+    this.crowdMood = 50;
+    this.splatterMeter = 0;
+    this.perceptionMeter = 50;
+    this.greaseBlurActive = false;
+    this.flashDazeActive = false;
+    
+    // Show appropriate stage mechanics UI
+    this.showStageMechanics(newStage);
+    
+    // Change music to new stage
+    this.startStageMusic();
+    
+    // Play transition sound
+    this.playSound('powerup');
+    
+    // Increase difficulty
+    this.projectileInterval = Math.max(500, this.projectileInterval - 120);
+    // Check stage-related achievements immediately
+    this.checkAchievements();
+}
     createStageAnimations(stage) {
         // Clean up previous stage animations
         this.removeAnimatedClouds();
