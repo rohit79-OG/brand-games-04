@@ -355,6 +355,34 @@
             }
         }
 
+        /* Mobile Score Display - Top Right */
+        .mobile-score-display {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 12px;
+            padding: 8px 12px;
+            color: white;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            z-index: 1001;
+            display: none;
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-score-display {
+                display: block !important;
+            }
+            .hud-item.score-item {
+                display: none !important;
+            }
+        }
+
         /* Stage-Specific Mechanics Styles */
         .stage-mechanic {
             position: fixed;
@@ -1281,7 +1309,7 @@
             </div>
         </div>
         
-        <div class="hud-item">
+       <div class="hud-item">
             <div class="hud-label">FAB Power</div>
             <div class="hud-bar-bg">
                 <div id="powerBar" class="hud-bar-fill power-bar" style="width: 0%"></div>
@@ -1301,6 +1329,11 @@
         </div>
     </div>
 </div>
+
+     <!-- Mobile Score Display -->
+    <div id="mobileScoreDisplay" class="mobile-score-display">
+        Score: <span id="mobileScoreValue">0</span>
+    </div>
 
     <!-- Stage Indicator -->
     <div id="stageIndicator" class="stage-indicator">
@@ -6248,7 +6281,7 @@ displayNotification(notification) {
     
     const stageMeterVisible = document.getElementById('stageMeterContainer')?.style.display !== 'none';
     
-    const mobileBasePosition = 200;
+    const mobileBasePosition = window.innerHeight * 0.45; // Middle of screen
     const stageMeterOffset = 60;
     const mobileTop = stageMeterVisible ? (mobileBasePosition + stageMeterOffset) + 'px' : mobileBasePosition + 'px';
     
@@ -6418,8 +6451,12 @@ displayNotification(notification) {
     
     updateScore() {
         const scoreElement = document.getElementById('scoreValue');
+        const mobileScoreElement = document.getElementById('mobileScoreValue');
         if (scoreElement) {
             scoreElement.textContent = this.score;
+        }
+        if (mobileScoreElement) {
+            mobileScoreElement.textContent = this.score;
         }
 
        // Check achievements immediately when score updates
