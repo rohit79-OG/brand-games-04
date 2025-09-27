@@ -383,24 +383,25 @@
             }
         }
 
-        /* Mobile Notification Positioning */
-        @media (max-width: 768px) {
-            #unifiedNotificationContainer {
-                position: fixed !important;
-                top: 60px !important; /* Just below score container */
-                right: 15px !important;
-                left: auto !important;
-                transform: none !important;
-                max-width: 200px !important;
-            }
-            
-            #unifiedNotificationContainer > div {
-                font-size: 0.75em !important;
-                padding: 8px 12px !important;
-                text-align: right !important;
-                border-radius: 8px !important;
-            }
-        }
+        /* Force mobile notification positioning */
+@media (max-width: 768px) {
+    #unifiedNotificationContainer {
+        position: fixed !important;
+        top: 60px !important;
+        right: 15px !important;
+        left: auto !important;
+        transform: none !important;
+        max-width: 200px !important;
+    }
+    
+    #unifiedNotificationContainer > div {
+        font-size: 0.75em !important;
+        padding: 8px 12px !important;
+        text-align: right !important;
+        border-radius: 8px !important;
+        max-width: 200px !important;
+    }
+}
 
         /* Stage-Specific Mechanics Styles */
         .stage-mechanic {
