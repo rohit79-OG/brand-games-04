@@ -383,6 +383,25 @@
             }
         }
 
+        /* Mobile Notification Positioning */
+        @media (max-width: 768px) {
+            #unifiedNotificationContainer {
+                position: fixed !important;
+                top: 60px !important; /* Just below score container */
+                right: 15px !important;
+                left: auto !important;
+                transform: none !important;
+                max-width: 200px !important;
+            }
+            
+            #unifiedNotificationContainer > div {
+                font-size: 0.75em !important;
+                padding: 8px 12px !important;
+                text-align: right !important;
+                border-radius: 8px !important;
+            }
+        }
+
         /* Stage-Specific Mechanics Styles */
         .stage-mechanic {
             position: fixed;
@@ -6279,20 +6298,30 @@ displayNotification(notification) {
     
     console.log("displayNotification executing - width:", currentWidth, "isMobile:", isMobileScreen);
     
-    const stageMeterVisible = document.getElementById('stageMeterContainer')?.style.display !== 'none';
+    // Mobile vs Desktop positioning
+    let topPosition, leftPosition, transform, textAlign, maxWidth;
     
-    const mobileBasePosition = window.innerHeight * 0.55; // Middle of screen
-    const stageMeterOffset = 60;
-    const mobileTop = stageMeterVisible ? (mobileBasePosition + stageMeterOffset) + 'px' : mobileBasePosition + 'px';
-    
-    const desktopTop = '120px';
-    const topPosition = isMobileScreen ? mobileTop : desktopTop;
+    if (isMobileScreen) {
+        // Position under score container on mobile
+        topPosition = '60px';
+        leftPosition = '15px';
+        transform = 'none';
+        textAlign = 'right';
+        maxWidth = '200px';
+    } else {
+        // Center position for desktop
+        topPosition = '120px';
+        leftPosition = '50%';
+        transform = 'translateX(-50%)';
+        textAlign = 'center';
+        maxWidth = '400px';
+    }
     
     console.log("Calculated topPosition:", topPosition);
     
-    const fontSize = isMobileScreen ? '0.9em' : '1.1em';
-    const padding = isMobileScreen ? '12px 20px' : '15px 30px';
-    const maxWidth = isMobileScreen ? '280px' : '400px';
+    const fontSize = isMobileScreen ? '0.75em' : '1.1em';
+    const padding = isMobileScreen ? '8px 12px' : '15px 30px';
+    const borderRadius = isMobileScreen ? '8px' : '12px';
     
     // Set content first
     this.notificationContainer.innerHTML = `
@@ -6301,25 +6330,25 @@ displayNotification(notification) {
             backdrop-filter: blur(15px);
             -webkit-backdrop-filter: blur(15px);
             border: 1px solid rgba(255, 255, 255, 0.25);
-            border-radius: 12px;
+            border-radius: ${borderRadius};
             padding: ${padding};
             color: white;
             font-weight: bold;
             font-size: ${fontSize};
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-            text-align: center;
+            text-align: ${textAlign};
             max-width: ${maxWidth};
             animation: notificationFadeIn 0.3s ease;
         ">${notification.message}</div>
     `;
     
-    // THEN apply positioning and show - use setTimeout to ensure content is set first
+    // Apply positioning and show
     setTimeout(() => {
         this.notificationContainer.style.cssText = `
             position: fixed !important;
             top: ${topPosition} !important;
-            left: 50% !important;
-            transform: translateX(-50%) !important;
+            ${isMobileScreen ? 'right' : 'left'}: ${isMobileScreen ? '15px' : leftPosition} !important;
+            ${!isMobileScreen ? 'transform: ' + transform + ' !important;' : ''}
             z-index: 9999 !important;
             pointer-events: none;
             display: block !important;
@@ -6328,13 +6357,17 @@ displayNotification(notification) {
         console.log("Applied positioning:", topPosition, "Display:", this.notificationContainer.style.display);
     }, 10);
     
-    // Hide after full duration
+    // Faster fade for mobile, normal for desktop
+    const displayDuration = isMobileScreen ? notification.duration * 0.6 : notification.duration;
+    const queueDelay = isMobileScreen ? 200 : 300;
+    
+    // Hide after duration
     setTimeout(() => {
         if (this.notificationContainer) {
             this.notificationContainer.style.display = 'none';
         }
-        setTimeout(() => this.processNotificationQueue(), 300);
-    }, notification.duration);
+        setTimeout(() => this.processNotificationQueue(), queueDelay);
+    }, displayDuration);
 }
     
    showNotification(message) {
