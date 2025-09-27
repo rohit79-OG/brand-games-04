@@ -6291,18 +6291,22 @@ processNotificationQueue() {
 }
 
 displayNotification(notification) {
+    console.log('displayNotification CALLED with:', notification.message);
+    console.log('Current container before changes:', this.notificationContainer.style.cssText);
+    
     const currentWidth = window.innerWidth;
     const isMobileScreen = currentWidth <= 768;
     
     console.log("displayNotification executing - width:", currentWidth, "isMobile:", isMobileScreen);
     
     // Mobile vs Desktop positioning
-    let topPosition, leftPosition, transform, textAlign, maxWidth;
+    let topPosition, leftPosition, rightPosition, transform, textAlign, maxWidth;
     
     if (isMobileScreen) {
         // Position under score container on mobile
         topPosition = '60px';
-        leftPosition = '15px';
+        rightPosition = '15px';
+        leftPosition = 'auto';
         transform = 'none';
         textAlign = 'right';
         maxWidth = '200px';
@@ -6310,6 +6314,7 @@ displayNotification(notification) {
         // Center position for desktop
         topPosition = '120px';
         leftPosition = '50%';
+        rightPosition = 'auto';
         transform = 'translateX(-50%)';
         textAlign = 'center';
         maxWidth = '400px';
@@ -6345,8 +6350,9 @@ displayNotification(notification) {
         this.notificationContainer.style.cssText = `
             position: fixed !important;
             top: ${topPosition} !important;
-            ${isMobileScreen ? 'right' : 'left'}: ${isMobileScreen ? '15px' : leftPosition} !important;
-            ${!isMobileScreen ? 'transform: ' + transform + ' !important;' : ''}
+            left: ${leftPosition} !important;
+            right: ${rightPosition} !important;
+            transform: ${transform} !important;
             z-index: 9999 !important;
             pointer-events: none;
             display: block !important;
