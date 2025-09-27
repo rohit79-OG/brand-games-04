@@ -2869,7 +2869,9 @@ updateDebugOverlay() {
         const loader = new THREE.TextureLoader();
         const aideTexture = loader.load('https://assets.codepen.io/t-24779/aide_frontal_sheet1.png');
         
-        const geometry = new THREE.PlaneGeometry(1.5, 1.5);
+       // Mobile-responsive sprite sizing
+        const spriteSize = this.isMobile ? 1.1 : 1.5;
+        const geometry = new THREE.PlaneGeometry(spriteSize, spriteSize);
         const material = new THREE.MeshPhongMaterial({ 
             map: aideTexture,
             transparent: true,
