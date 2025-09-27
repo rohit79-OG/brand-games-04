@@ -413,6 +413,7 @@
     opacity: 0;
     transform: translateX(20px);
     transition: all 0.3s ease;
+    line-height: 1.2;
 }
 
 .mobile-notification-item.show {
@@ -6431,8 +6432,16 @@ showMobileNotification(message, backgroundColor = 'rgba(255, 255, 255, 0.08)') {
     
     const notification = document.createElement('div');
     notification.className = 'mobile-notification-item';
-    notification.textContent = message;
     notification.style.background = backgroundColor;
+    
+    // Handle multi-line text for specific stages
+    if (message === 'Street Fundraiser') {
+        notification.innerHTML = 'Street<br>Fundraiser';
+    } else if (message === 'Wedding Celebration') {
+        notification.innerHTML = 'Wedding<br>Celebration';
+    } else {
+        notification.textContent = message;
+    }
     
     container.appendChild(notification);
     
@@ -6504,8 +6513,8 @@ transitionToStage(newStage) {
     
     const stageNames = {
         'rally': 'Political Rally',
-        'street': 'Fundraiser Speech',
-        'wedding': 'Wedding Speech',
+        'street': 'Street Fundraiser',
+        'wedding': 'Wedding Celebration',
         'cricket': 'Cricket Stadium',
         'debate': 'Debate Studio'
     };
@@ -6680,6 +6689,9 @@ transitionToStage(newStage) {
     
     this.isRunning = true;
     this.gameLoop();
+
+    // Show initial stage notification
+    this.showNotification('Political Rally', 'linear-gradient(135deg, rgba(70, 130, 180, 0.8), rgba(100, 149, 237, 0.8))');
 }
 
 cleanupProjectiles() {
