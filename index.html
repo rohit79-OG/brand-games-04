@@ -6408,17 +6408,17 @@ setTimeout(() => {
     }, displayDuration);
 }
     
-showNotification(message) {
+showNotification(message, backgroundColor) {
     const isMobileScreen = window.innerWidth <= 768;
     
     if (isMobileScreen) {
-        this.showMobileNotification(message);
+        this.showMobileNotification(message, backgroundColor);
     } else {
         this.queueNotification(message);
     }
 }
 
-showMobileNotification(message) {
+showMobileNotification(message, backgroundColor = 'rgba(255, 255, 255, 0.08)') {
     const container = document.getElementById('mobileNotificationContainer');
     if (!container) {
         console.log('Mobile notification container not found');
@@ -6430,6 +6430,7 @@ showMobileNotification(message) {
     const notification = document.createElement('div');
     notification.className = 'mobile-notification-item';
     notification.textContent = message;
+    notification.style.background = backgroundColor;
     
     container.appendChild(notification);
     
@@ -6485,7 +6486,7 @@ showMobileNotification(message) {
         }
     }
     
-   transitionToStage(newStage) {
+transitionToStage(newStage) {
     this.currentStage = newStage;
     this.createStageBackground(newStage);
     this.createStageSpecificCrowd(newStage);
@@ -6507,8 +6508,16 @@ showMobileNotification(message) {
         'debate': 'Debate Studio'
     };
     
-    // Use notification system instead of center stage indicator
-    this.showNotification(`Entering ${stageNames[newStage]}`);
+    // Stage background colors
+    const stageColors = {
+        'rally': 'linear-gradient(135deg, rgba(70, 130, 180, 0.8), rgba(100, 149, 237, 0.8))', // Blue
+        'street': 'linear-gradient(135deg, rgba(105, 105, 105, 0.8), rgba(128, 128, 128, 0.8))', // Gray
+        'wedding': 'linear-gradient(135deg, rgba(255, 182, 193, 0.8), rgba(255, 105, 180, 0.8))', // Pink
+        'cricket': 'linear-gradient(135deg, rgba(34, 139, 34, 0.8), rgba(50, 205, 50, 0.8))', // Green
+        'debate': 'linear-gradient(135deg, rgba(25, 25, 112, 0.8), rgba(72, 61, 139, 0.8))' // Dark Blue
+    };
+
+    this.showNotification(stageNames[newStage], stageColors[newStage]);
     
     // Clear stains and obstacles on transition
     this.stains.forEach(stain => this.scene.remove(stain));
