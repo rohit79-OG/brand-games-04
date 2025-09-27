@@ -241,7 +241,7 @@
             position: fixed;
             top: 15px;
             left: 15px;
-            width: 280px;
+            width: 240px;
             z-index: 1000;
             display: none;
         }
@@ -256,7 +256,7 @@
             -webkit-backdrop-filter: blur(15px);
             border: 1px solid rgba(255, 255, 255, 0.25);
             border-radius: 12px;
-            padding: 12px;
+            padding: 8px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
         }    
 
@@ -6281,7 +6281,7 @@ displayNotification(notification) {
     
     const stageMeterVisible = document.getElementById('stageMeterContainer')?.style.display !== 'none';
     
-    const mobileBasePosition = window.innerHeight * 0.45; // Middle of screen
+    const mobileBasePosition = window.innerHeight * 0.55; // Middle of screen
     const stageMeterOffset = 60;
     const mobileTop = stageMeterVisible ? (mobileBasePosition + stageMeterOffset) + 'px' : mobileBasePosition + 'px';
     
