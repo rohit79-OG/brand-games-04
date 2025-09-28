@@ -6246,6 +6246,20 @@ updateAudioLevels() {
     let playerState = 'idle';
     let direction = 'front';
     
+    // Apply dash velocity (mobile swipe-to-dash)
+    if (this.dashDuration > 0) {
+        this.player.position.x += this.dashVelocity * deltaTime;
+        this.dashDuration -= deltaTime;
+        if (this.dashDuration <= 0) {
+            this.dashVelocity = 0;
+        }
+    }
+    
+    // Update dash cooldown
+    if (this.dashCooldown > 0) {
+        this.dashCooldown -= deltaTime;
+    }
+
     // Handle horizontal movement - prevent conflicting inputs
     const leftPressed = this.keys['ArrowLeft'] || this.touchControls.left;
     const rightPressed = this.keys['ArrowRight'] || this.touchControls.right;
