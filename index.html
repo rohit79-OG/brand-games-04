@@ -2355,22 +2355,31 @@ updateDebugOverlay() {
     const muteBtn = document.getElementById('muteBtn');
     const musicVolumeSlider = document.getElementById('musicVolume');
     const sfxVolumeSlider = document.getElementById('sfxVolume');
-    const volumeSliders = document.querySelector('.volume-sliders');
+    
+    // Ensure button exists before adding events
+    if (!muteBtn) {
+        console.warn('Audio mute button not found');
+        return;
+    }
     
     if (muteBtn) {
-        muteBtn.addEventListener('click', () => {
+        const toggleAudio = () => {
             this.toggleGlobalMute();
             muteBtn.textContent = this.globalMuted ? '🔇' : '🔊';
             muteBtn.classList.toggle('muted', this.globalMuted);
-        });
+        };
         
-        // Add mobile touch support for audio toggle
-        muteBtn.addEventListener('touchstart', (e) => {
+        // Add both click and touch events for cross-platform compatibility
+        muteBtn.addEventListener('click', toggleAudio);
+        muteBtn.addEventListener('touchend', (e) => {
             e.preventDefault();
-            this.toggleGlobalMute();
-            muteBtn.textContent = this.globalMuted ? '🔇' : '🔊';
-            muteBtn.classList.toggle('muted', this.globalMuted);
+            e.stopPropagation();
+            toggleAudio();
         });
+
+        // Ensure button is touchable on mobile
+        muteBtn.style.touchAction = 'manipulation';
+        muteBtn.style.userSelect = 'none';
 
         // Show/hide volume sliders on desktop
         if (!this.isMobile) {
