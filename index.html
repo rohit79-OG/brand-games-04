@@ -2010,6 +2010,12 @@ class StainSlayerGame {
         this.repelForce = 8;
         this.repelCooldown = 0;
 
+        // Double-tap power moves
+        this.lastTapTime = 0;
+        this.doubleTapWindow = 300; // ms
+        this.speedBoostActive = false;
+        this.speedBoostDuration = 0;
+
         // Mobile dash mechanics
         this.dashCooldown = 0;
         this.dashVelocity = 0;
@@ -2196,8 +2202,19 @@ updateDebugOverlay() {
                 
                 // Only repel if minimal movement (true tap, not swipe)
                 if (deltaX < 20 && deltaY < 20) {
-                    this.handleTapToRepel(touch.clientX, touch.clientY);
-                    return; // Exit early, don't process as swipe
+                   // Check for double-tap first
+                    const currentTime = Date.now();
+                    if (currentTime - this.lastTapTime < this.doubleTapWindow) {
+                        // Double-tap detected
+                        this.activateSpeedBoost();
+                        this.lastTapTime = 0; // Reset to prevent triple-tap
+                        return;
+                    } else {
+                        // Single tap - do repel
+                        this.handleTapToRepel(touch.clientX, touch.clientY);
+                        this.lastTapTime = currentTime;
+                        return;
+                    }
                 }
             }
             
@@ -6315,7 +6332,7 @@ updateAudioLevels() {
     }
     
  updatePlayer(deltaTime) {
-    const speed = 5;
+    const speed = this.speedBoostActive ? 8 : 5; // 60% faster when boosted
     let playerState = 'idle';
     let direction = 'front';
     
@@ -6336,6 +6353,19 @@ updateAudioLevels() {
     // Update repel cooldown
     if (this.repelCooldown > 0) {
         this.repelCooldown -= deltaTime;
+    }
+
+ // Update speed boost
+    if (this.speedBoostDuration > 0) {
+        this.speedBoostDuration -= deltaTime;
+        if (this.speedBoostDuration <= 0) {
+            this.speedBoostActive = false;
+            // Remove glow effect
+            if (this.player.material) {
+                this.player.material.emissive = new THREE.Color(0x000000);
+                this.player.material.emissiveIntensity = 0;
+            }
+        }
     }
 
     // Handle horizontal movement - prevent conflicting inputs
@@ -6637,6 +6667,21 @@ handleTapToRepel(screenX, screenY) {
             requestAnimationFrame(animate);
         };
         animate();
+    }
+
+    activateSpeedBoost() {
+        if (this.speedBoostActive) return; // Prevent stacking
+        
+        this.speedBoostActive = true;
+        this.speedBoostDuration = 3.0; // 3 seconds
+        this.playSound('powerup');
+        this.showNotification('SPEED BOOST!');
+        
+        // Visual effect - make aide glow
+        if (this.player.material) {
+            this.player.material.emissive = new THREE.Color(0xFFD700);
+            this.player.material.emissiveIntensity = 0.3;
+        }
     }
 
 initNotificationSystem() {
