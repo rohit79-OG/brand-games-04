@@ -114,12 +114,12 @@
     width: 100vw !important;
     height: 100vh !important;
     margin: 0 !important;
-    padding: 20px !important;
+    padding: 0 20px !important;
     background: linear-gradient(135deg, #FFD400, #FFA500) !important;
     display: none;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: center; /* Keep center for desktop */
     z-index: 9000 !important;
     opacity: 0;
     visibility: hidden;
@@ -158,14 +158,14 @@
 /* Mobile-specific centering for start screen */
 @media (max-width: 768px) {
     .start-screen {
-        padding: 13vh 20px !important;
-        justify-content: center !important;
+        padding: 0 20px !important;
+        justify-content: center !important; /* Perfect center on mobile */
     }
     
     .start-card {
-        max-height: 80vh !important;
+        max-height: 90vh !important;
         overflow-y: auto !important;
-        padding: 30px !important;
+        padding: 40px !important;
     }
 }
         .fab-logo-img {
@@ -1083,12 +1083,12 @@
     width: 100vw !important;
     height: 100vh !important;
     margin: 0 !important;
-    padding: 20px !important;
+    padding: 0 20px !important;
     background: linear-gradient(135deg, #FFD400, #FFA500) !important;
     display: none;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: center; /* Keep center for desktop */
     z-index: 8000 !important;
     color: white;
     visibility: hidden;
@@ -1124,14 +1124,14 @@
 /* Mobile-specific centering for results screen */
 @media (max-width: 768px) {
     .results-screen {
-        padding: 13vh 20px !important;
-        justify-content: center !important;
+        padding: 0 20px !important;
+        justify-content: center !important; /* Perfect center on mobile */
     }
     
     .results-card {
-        max-height: 85vh !important;
+        max-height: 90vh !important;
         overflow-y: auto !important;
-        padding: 20px !important;
+        padding: 30px !important;
     }
 }
 
