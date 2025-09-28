@@ -1845,11 +1845,6 @@ class StainSlayerGame {
     constructor() {
         this.debugMode = true; // Add this line
     console.log("Debug mode explicitly enabled:", this.debugMode);
-    
-    // Mobile debug system
-        this.mobileDebugEnabled = this.isMobile && window.location.search.includes('debug=1');
-        this.debugStats = {};
-        this.debugUpdateInterval = null;
 
         this.canvas = document.getElementById('gameCanvas');
         this.scene = null;
@@ -2010,6 +2005,11 @@ class StainSlayerGame {
         this.touchStartY = 0;
         this.touchStartTime = 0;
 
+        // Tap-to-repel system
+        this.repelRadius = 80; // pixels
+        this.repelForce = 8;
+        this.repelCooldown = 0;
+
         // Mobile dash mechanics
         this.dashCooldown = 0;
         this.dashVelocity = 0;
@@ -2082,9 +2082,6 @@ updateDebugOverlay() {
             this.hideLoadingScreen();
             this.showStartScreen();
 
-            // Initialize mobile debug if enabled
-            if (this.mobileDebugEnabled) {
-                this.initializeMobileDebug();             }
         });
     }
     
@@ -2191,6 +2188,18 @@ updateDebugOverlay() {
         this.canvas.addEventListener('touchend', (e) => {
             const touchEndTime = Date.now();
             const touchDuration = touchEndTime - this.touchStartTime;
+            // Quick tap (not swipe) triggers repel - check this FIRST
+            if (touchDuration < 200 && this.repelCooldown <= 0) {
+                const touch = e.changedTouches[0];
+                const deltaX = Math.abs(touch.clientX - this.touchStartX);
+                const deltaY = Math.abs(touch.clientY - this.touchStartY);
+                
+                // Only repel if minimal movement (true tap, not swipe)
+                if (deltaX < 20 && deltaY < 20) {
+                    this.handleTapToRepel(touch.clientX, touch.clientY);
+                    return; // Exit early, don't process as swipe
+                }
+            }
             
             if (e.changedTouches.length > 0) {
                 const touch = e.changedTouches[0];
@@ -2461,130 +2470,6 @@ updateDebugOverlay() {
     }
 }
 
-
-    
-    initializeMobileDebug() {
-        // Create debug overlay
-        this.debugOverlay = document.createElement('div');
-        this.debugOverlay.id = 'mobileDebugOverlay';
-        this.debugOverlay.style.cssText = `
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            width: 280px;
-            max-height: 400px;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            font-family: monospace;
-            font-size: 10px;
-            padding: 10px;
-            border-radius: 5px;
-            z-index: 10000;
-            overflow-y: auto;
-            pointer-events: none;
-        `;
-        document.body.appendChild(this.debugOverlay);
-        
-        // Add toggle button
-        this.debugToggle = document.createElement('button');
-        this.debugToggle.textContent = 'DEBUG';
-        this.debugToggle.style.cssText = `
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            z-index: 10001;
-            background: rgba(255, 0, 0, 0.7);
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 3px;
-            font-size: 12px;
-        `;
-        this.debugToggle.addEventListener('click', () => {
-            this.debugOverlay.style.display = 
-                this.debugOverlay.style.display === 'none' ? 'block' : 'none';
-        });
-        document.body.appendChild(this.debugToggle);
-        
-        // Start debug updates
-        this.startMobileDebugUpdates();
-    }
-    
-    startMobileDebugUpdates() {
-        this.debugUpdateInterval = setInterval(() => {
-            this.updateMobileDebugDisplay();
-        }, 500); // Update every 500ms
-    }
-    
-    updateMobileDebugDisplay() {
-        if (!this.debugOverlay) return;
-        
-        const audioBtn = document.getElementById('muteBtn');
-        const audioContext = this.audioContext;
-        
-        // Collect debug stats
-        this.debugStats = {
-            // Audio Debug
-            audioContextState: audioContext ? audioContext.state : 'none',
-            globalMuted: this.globalMuted,
-            audioInitialized: this.audioInitialized,
-            backgroundMusicPaused: this.backgroundMusic ? this.backgroundMusic.paused : 'no-music',
-            backgroundMusicVolume: this.backgroundMusic ? this.backgroundMusic.volume : 'no-music',
-            
-            // Button Debug
-            buttonExists: !!audioBtn,
-            buttonVisible: audioBtn ? getComputedStyle(audioBtn).display !== 'none' : false,
-            buttonText: audioBtn ? audioBtn.textContent : 'none',
-            buttonZIndex: audioBtn ? getComputedStyle(audioBtn).zIndex : 'none',
-            
-            // Touch Debug
-            touchSupport: 'ontouchstart' in window,
-            screenSize: `${window.innerWidth}x${window.innerHeight}`,
-            isMobileDetected: this.isMobile,
-            
-            // Game Debug
-            gameRunning: this.isRunning,
-            currentStage: this.currentStage,
-            score: this.score,
-            projectileCount: this.projectiles.length,
-            
-            // Performance
-            timestamp: new Date().toLocaleTimeString()
-        };
-        
-        // Update display
-        this.debugOverlay.innerHTML = `
-            <strong>MOBILE DEBUG</strong><br>
-            <strong>AUDIO:</strong><br>
-            Context: ${this.debugStats.audioContextState}<br>
-            Muted: ${this.debugStats.globalMuted}<br>
-            Initialized: ${this.debugStats.audioInitialized}<br>
-            BGM Paused: ${this.debugStats.backgroundMusicPaused}<br>
-            BGM Volume: ${this.debugStats.backgroundMusicVolume}<br>
-            <br>
-            <strong>BUTTON:</strong><br>
-            Exists: ${this.debugStats.buttonExists}<br>
-            Visible: ${this.debugStats.buttonVisible}<br>
-            Text: ${this.debugStats.buttonText}<br>
-            Z-Index: ${this.debugStats.buttonZIndex}<br>
-            <br>
-            <strong>DEVICE:</strong><br>
-            Touch: ${this.debugStats.touchSupport}<br>
-            Screen: ${this.debugStats.screenSize}<br>
-            Mobile: ${this.debugStats.isMobileDetected}<br>
-            <br>
-            <strong>GAME:</strong><br>
-            Running: ${this.debugStats.gameRunning}<br>
-            Stage: ${this.debugStats.currentStage}<br>
-            Score: ${this.debugStats.score}<br>
-            Projectiles: ${this.debugStats.projectileCount}<br>
-            <br>
-            Updated: ${this.debugStats.timestamp}
-        `;
-    }
-
-
-    
     initializeStageMusicLoops() {
         // Create procedural music loops for each stage
         this.musicLoops = {
@@ -6448,6 +6333,11 @@ updateAudioLevels() {
         this.dashCooldown -= deltaTime;
     }
 
+    // Update repel cooldown
+    if (this.repelCooldown > 0) {
+        this.repelCooldown -= deltaTime;
+    }
+
     // Handle horizontal movement - prevent conflicting inputs
     const leftPressed = this.keys['ArrowLeft'] || this.touchControls.left;
     const rightPressed = this.keys['ArrowRight'] || this.touchControls.right;
@@ -6603,8 +6493,7 @@ if (this.currentStage === 'debate') {
         this.debugData.stuckFrames = 0;
     }
 }
-// END ENHANCED DEBUG BLOCK
-// END DEBUG BLOCK
+
 
     // Handle jumping physics
     if (this.isJumping) {
@@ -6665,6 +6554,90 @@ if (this.keys['Shift'] || this.touchControls.shield) {
     // Animate sprite
     this.animateSprite(this.player, deltaTime, playerState);
 }
+
+
+handleTapToRepel(screenX, screenY) {
+        // Convert screen coordinates to world coordinates
+        const rect = this.canvas.getBoundingClientRect();
+        const x = ((screenX - rect.left) / rect.width) * 2 - 1;
+        const y = -((screenY - rect.top) / rect.height) * 2 + 1;
+        
+        const vector = new THREE.Vector3(x, y, 0.5);
+        vector.unproject(this.camera);
+        
+        const dir = vector.sub(this.camera.position).normalize();
+        const distance = -this.camera.position.z / dir.z;
+        const worldPos = this.camera.position.clone().add(dir.multiplyScalar(distance));
+        
+        // Find projectiles within repel range
+        const repelRange = this.repelRadius / 40; // Convert pixels to world units
+        let repelledCount = 0;
+        
+        this.projectiles.forEach(projectile => {
+            const distanceToTap = projectile.position.distanceTo(worldPos);
+            
+            if (distanceToTap < repelRange) {
+                // Calculate repel direction (away from tap point)
+                const repelDirection = projectile.position.clone().sub(worldPos).normalize();
+                
+                // Apply repel force
+              projectile.velocity.add(repelDirection.multiplyScalar(this.repelForce));
+                
+                repelledCount++;
+                
+                // Visual feedback
+                this.createRepelParticles(projectile.position);
+            }
+        });
+        
+        if (repelledCount > 0) {
+            this.repelCooldown = 0.5; // 500ms cooldown
+            this.playSound('push');
+            this.showNotification(`Repelled ${repelledCount} projectile${repelledCount > 1 ? 's' : ''}!`);
+        }
+    }
+
+    createRepelParticles(position) {
+        const particleCount = this.isMobile ? 8 : 12;
+        
+        for (let i = 0; i < particleCount; i++) {
+            const geometry = new THREE.SphereGeometry(0.05, 6, 6);
+            const material = new THREE.MeshBasicMaterial({
+                color: new THREE.Color(0x00B4E6), // FAB blue
+                transparent: true,
+                opacity: 0.8
+            });
+            const particle = new THREE.Mesh(geometry, material);
+            
+            particle.position.copy(position);
+            particle.velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 4,
+                (Math.random() - 0.5) * 4,
+                (Math.random() - 0.5) * 4
+            );
+            particle.lifetime = 0.8;
+            
+            this.scene.add(particle);
+            this.animateRepelParticle(particle);
+        }
+    }
+
+    animateRepelParticle(particle) {
+        const animate = () => {
+            if (particle.lifetime <= 0 || !particle.parent) {
+                this.scene.remove(particle);
+                return;
+            }
+            
+            particle.position.add(particle.velocity.clone().multiplyScalar(0.016));
+            particle.velocity.multiplyScalar(0.95); // Slow down over time
+            particle.lifetime -= 0.016;
+            particle.material.opacity = particle.lifetime / 0.8;
+            
+            requestAnimationFrame(animate);
+        };
+        animate();
+    }
 
 initNotificationSystem() {
     this.notificationContainer = document.createElement('div');
