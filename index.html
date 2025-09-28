@@ -2352,10 +2352,11 @@ updateDebugOverlay() {
         this.audioInitialized = true;
     }
     
-   setupAudioControls() {
+ setupAudioControls() {
     const muteBtn = document.getElementById('muteBtn');
     const musicVolumeSlider = document.getElementById('musicVolume');
     const sfxVolumeSlider = document.getElementById('sfxVolume');
+    const volumeSliders = document.querySelector('.volume-sliders'); // FIX: Add missing variable
     
     // Ensure button exists before adding events
     if (!muteBtn) {
@@ -2370,17 +2371,48 @@ updateDebugOverlay() {
             muteBtn.classList.toggle('muted', this.globalMuted);
         };
         
-        // Add both click and touch events for cross-platform compatibility
-        muteBtn.addEventListener('click', toggleAudio);
+        // FIX: Add mobile touch state tracking
+        let touchStarted = false;
+        
+        // Desktop click handler
+        muteBtn.addEventListener('click', (e) => {
+            // Prevent double-firing on mobile devices
+            if (!touchStarted) {
+                toggleAudio();
+            }
+        });
+        
+        // FIX: Add proper touchstart handler
+        muteBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            touchStarted = true;
+            muteBtn.style.background = 'rgba(255, 255, 255, 0.4)';
+        });
+        
+        // Mobile touchend handler
         muteBtn.addEventListener('touchend', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            toggleAudio();
+            muteBtn.style.background = 'rgba(255, 255, 255, 0.1)';
+            
+            if (touchStarted) {
+                touchStarted = false;
+                toggleAudio();
+            }
+        });
+        
+        // FIX: Add touchcancel handler
+        muteBtn.addEventListener('touchcancel', (e) => {
+            touchStarted = false;
+            muteBtn.style.background = 'rgba(255, 255, 255, 0.1)';
         });
 
-        // Ensure button is touchable on mobile
+        // FIX: Enhanced mobile touch properties
         muteBtn.style.touchAction = 'manipulation';
         muteBtn.style.userSelect = 'none';
+        muteBtn.style.webkitTapHighlightColor = 'transparent';
+        muteBtn.style.webkitTouchCallout = 'none';
+        muteBtn.style.webkitUserSelect = 'none';
 
         // Show/hide volume sliders on desktop
         if (!this.isMobile) {
@@ -2388,9 +2420,12 @@ updateDebugOverlay() {
                 if (volumeSliders) volumeSliders.classList.add('show');
             });
             
-            document.querySelector('.audio-controls').addEventListener('mouseleave', () => {
-                if (volumeSliders) volumeSliders.classList.remove('show');
-            });
+            const audioControls = document.querySelector('.audio-controls');
+            if (audioControls) {
+                audioControls.addEventListener('mouseleave', () => {
+                    if (volumeSliders) volumeSliders.classList.remove('show');
+                });
+            }
         }
     }
     
