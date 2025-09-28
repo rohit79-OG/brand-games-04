@@ -140,6 +140,7 @@
     display: none !important;
     visibility: hidden !important;
     transform: translateY(-100vh) !important;
+    z-index: -1 !important;
 }
 
 .start-card {
@@ -7193,6 +7194,9 @@ hideStartScreen() {
     // Remove ALL elements with start screen classes/IDs
     const startScreens = document.querySelectorAll('#startScreen, .start-screen');
     startScreens.forEach(element => {
+        element.style.zIndex = '-9999';
+        element.style.pointerEvents = 'none';
+        element.style.visibility = 'hidden';
         element.remove();
     });
     
@@ -7200,10 +7204,10 @@ hideStartScreen() {
     const anyRemaining = document.getElementById('startScreen');
     if (anyRemaining) {
         anyRemaining.style.display = 'none';
+        anyRemaining.style.zIndex = '-9999';
         anyRemaining.style.position = 'absolute';
         anyRemaining.style.top = '-9999px';
         anyRemaining.style.left = '-9999px';
-        anyRemaining.style.zIndex = '-9999';
     }
 }
     showGameHUD() {
