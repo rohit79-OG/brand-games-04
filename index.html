@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Stain Slayer - Godrej FAB</title>
     <style>
         * {
@@ -158,14 +158,19 @@
 /* Mobile-specific centering for start screen */
 @media (max-width: 768px) {
     .start-screen {
-        padding: 0 20px !important;
+        padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom) 20px !important;
+        padding: max(env(safe-area-inset-top), 20px) 20px max(env(safe-area-inset-bottom), 20px) 20px !important;
         justify-content: center !important; /* Perfect center on mobile */
+        min-height: 100vh;
+        min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     }
     
     .start-card {
-        max-height: 90vh !important;
-        overflow-y: auto !important;
-        padding: 40px !important;
+       max-height: 85vh !important;
+       max-height: calc(85vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+       overflow-y: auto !important;
+       padding: 40px !important;
+       margin: auto 0 !important;
     }
 }
         .fab-logo-img {
@@ -1124,14 +1129,19 @@
 /* Mobile-specific centering for results screen */
 @media (max-width: 768px) {
     .results-screen {
-        padding: 0 20px !important;
+        padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom) 20px !important;
+        padding: max(env(safe-area-inset-top), 20px) 20px max(env(safe-area-inset-bottom), 20px) 20px !important;
         justify-content: center !important; /* Perfect center on mobile */
+        min-height: 100vh;
+        min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     }
     
     .results-card {
-        max-height: 90vh !important;
+        max-height: 85vh !important;
+        max-height: calc(85vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
         overflow-y: auto !important;
         padding: 30px !important;
+        margin: auto 0 !important;
     }
 }
 
