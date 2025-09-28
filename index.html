@@ -2193,7 +2193,10 @@ updateDebugOverlay() {
                 
                 // Detect swipes
                 if (touchDuration < 500) {
-                    if (Math.abs(deltaX) > 50 && swipeSpeed > 0.3) {
+                    const isHorizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY);
+                    const isVerticalSwipe = Math.abs(deltaY) > Math.abs(deltaX);
+                    
+                    if (isHorizontalSwipe && Math.abs(deltaX) > 50 && swipeSpeed > 0.3) {
                         // Fast swipe triggers dash
                         if (this.dashCooldown <= 0) {
                             const dashDirection = deltaX > 0 ? 1 : -1;
@@ -2202,7 +2205,7 @@ updateDebugOverlay() {
                             this.dashCooldown = 1.0; // 1 second cooldown
                             this.playSound('push'); // Audio feedback
                         }
-                    } else if (Math.abs(deltaX) > 30) {
+                    } else if (isHorizontalSwipe && Math.abs(deltaX) > 30) {
                         // Normal swipe - standard movement
                         const moveAmount = this.isMobile ? 1.0 : 1.5;
                         if (deltaX > 0) {
@@ -2214,7 +2217,7 @@ updateDebugOverlay() {
                         }
                     }
                     
-                    if (deltaY < -50 && !this.isJumping) {
+                    if (isVerticalSwipe && deltaY < -50 && !this.isJumping) {
                         // Swipe up - jump
                         this.jump();
                     }
@@ -2361,6 +2364,14 @@ updateDebugOverlay() {
             muteBtn.classList.toggle('muted', this.globalMuted);
         });
         
+        // Add mobile touch support for audio toggle
+        muteBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.toggleGlobalMute();
+            muteBtn.textContent = this.globalMuted ? '🔇' : '🔊';
+            muteBtn.classList.toggle('muted', this.globalMuted);
+        });
+
         // Show/hide volume sliders on desktop
         if (!this.isMobile) {
             muteBtn.addEventListener('mouseenter', () => {
