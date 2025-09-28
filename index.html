@@ -6152,6 +6152,7 @@ toggleGlobalMute() {
         
         // Mute background music
         if (this.backgroundMusic) {
+            this.backgroundMusic.muted = true;
             this.backgroundMusic.volume = 0;
         }
     } else {
@@ -6168,6 +6169,7 @@ toggleGlobalMute() {
         }
         // Restart music if game is running
         if (this.backgroundMusic && this.isRunning) {
+            this.backgroundMusic.muted = false;
             this.backgroundMusic.volume = 0.15;
             this.backgroundMusic.play().catch(error => {
                 console.warn('Failed to resume background music:', error);
