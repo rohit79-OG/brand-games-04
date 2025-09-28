@@ -2384,7 +2384,7 @@ updateDebugOverlay() {
         // Initialize background music WAV file
         this.backgroundMusic = new Audio('https://assets.codepen.io/t-24779/stain-slayer-background-loop.wav');
         this.backgroundMusic.loop = true;
-        this.backgroundMusic.volume = 0.12; 
+        this.backgroundMusic.volume = 0.2; 
         this.backgroundMusic.preload = 'auto';
         
         // Handle loading errors gracefully
@@ -2983,7 +2983,7 @@ updateDebugOverlay() {
     // Start WAV background music
     if (this.backgroundMusic) {
         this.backgroundMusic.currentTime = 0; // Reset to beginning
-        this.backgroundMusic.volume = 0.12;
+        this.backgroundMusic.volume = 0.2;
         this.backgroundMusic.play().catch(error => {
             console.warn('Background music play failed:', error);
         });
@@ -6072,13 +6072,10 @@ toggleGlobalMute() {
         // Restart music if game is running
         if (this.backgroundMusic && this.isRunning) {
             this.backgroundMusic.muted = false;
-            this.backgroundMusic.volume = 0.15;
+            this.backgroundMusic.volume = 0.2;
             this.backgroundMusic.play().catch(error => {
                 console.warn('Failed to resume background music:', error);
             });
-        }
-        if (this.isRunning) {
-            this.startStageMusic();
         }
     }
     
