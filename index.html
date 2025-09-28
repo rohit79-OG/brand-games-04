@@ -480,21 +480,26 @@
         }
 
         /* Power Hit Warning */
-        .warning-indicator {
-            position: fixed;
-            top: 200px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: linear-gradient(45deg, #FF0000, #FF6600);
-            color: white;
-            padding: 20px 40px;
-            border-radius: 25px;
-            font-weight: bold;
-            font-size: 1.5em;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-            z-index: 1005;
-            animation: warningPulse 0.5s infinite;
-        }
+       .warning-indicator {
+    position: fixed;
+    top: 200px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 12px;
+    padding: 12px 24px;
+    color: white;
+    font-weight: bold;
+    font-size: 1.1em;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    text-align: center;
+    z-index: 1005;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    animation: slideDown 0.5s ease;
+}
 
         @keyframes warningPulse {
             0%, 100% { 
@@ -1991,6 +1996,10 @@ class StainSlayerGame {
         // Consecutive hit tracking system
         this.consecutiveHits = 0;
         this.maxConsecutiveHits = 5;
+
+        // Warning overlap prevention
+        this.warningShown3 = false;
+        this.warningShown4 = false;
 
         // Debug verification
         console.log("🎮 CONSTRUCTOR: Consecutive hit system initialized", this.consecutiveHits);
@@ -4770,26 +4779,13 @@ getStainColor(emoji) {
     this.consecutiveHits++;
     console.log("💥 HANDLE HIT - After increment:", this.consecutiveHits);
     
-    // Warning notifications at 3-4 consecutive hits (AFTER increment)
-    if (this.consecutiveHits === 3) {
-        console.log("🚨 NOTIFICATION TRIGGER: 3 hits warning at", Date.now());
-        this.showNotification('⚠️ Warning: 3 hits in a row! Block the next ones!');
-    } else if (this.consecutiveHits === 4) {
-        console.log("🚨 NOTIFICATION TRIGGER: 4 hits danger at", Date.now());
-        this.showNotification('🚨 DANGER! One more hit = GAME OVER!');
-    }
-    
-    console.log("📊 CONSECUTIVE HITS STATUS:", this.consecutiveHits, "of", this.maxConsecutiveHits);
-    
     // Reduce health (reputation)
     this.health -= 5;
     console.log("❤️ HEALTH DEBUG - After hit:", this.health);
     if (this.health < 0) this.health = 0;
     this.updateHealth();
     this.playSound('hit');
-    
-    // CRITICAL: Do NOT call updateCombo() here - this was causing incorrect scoring
-    this.resetCombo(); // Reset combo instead
+    this.resetCombo();
     
     // Stage-specific hit effects
     if (this.currentStage === 'street' && (projectile.emoji === '☕' || projectile.emoji === '🥔')) {
@@ -4801,21 +4797,46 @@ getStainColor(emoji) {
     }
     
     if (projectile.isPowerHit) {
-        this.health -= 5; // Extra damage for power hits
+        this.health -= 5;
         console.log("❤️ POWER HIT - Extra damage, health now:", this.health);
     }
     
-    // Game over after 5 consecutive hits OR health depleted
+    console.log("📊 CONSECUTIVE HITS STATUS:", this.consecutiveHits, "of", this.maxConsecutiveHits);
+    
+    // UNIFIED GAME OVER SYSTEM - Check consecutive hits first, then health
     if (this.consecutiveHits >= this.maxConsecutiveHits) {
+        // Immediate game over on 5 consecutive hits
+        console.log("🔥 GAME OVER TRIGGER - Flag check not needed");
         this.analytics.deathCause = 'consecutive_failures';
-        this.showNotification('💀 5 consecutive hits! Game Over!');
-        setTimeout(() => {
-            this.endGame();
-        }, 1000);
-        return;
-    } else if (this.health <= 0) {
-        this.analytics.deathCause = 'health_depleted';
+        this.showCenterWarning('💀 5 CONSECUTIVE HITS! GAME OVER!');
         this.endGame();
+        return;
+    } else if (this.consecutiveHits === 3) {
+        // Warning at 3 hits - prevent notification overlap
+        console.log("🚨 3-HIT CHECK - warningShown3:", this.warningShown3);
+        if (!this.warningShown3) {
+            this.warningShown3 = true;
+            console.log("✅ SHOWING 3-HIT WARNING");
+            this.showCenterWarning('⚠️ WARNING: 3 HITS IN A ROW!');
+        } else {
+            console.log("❌ 3-HIT WARNING BLOCKED - Already shown");
+        }
+    } else if (this.consecutiveHits === 4) {
+        // Final warning at 4 hits - prevent notification overlap
+        console.log("🚨 4-HIT CHECK - warningShown4:", this.warningShown4);
+        if (!this.warningShown4) {
+            this.warningShown4 = true;
+            console.log("✅ SHOWING 4-HIT WARNING");
+            this.showCenterWarning('🚨 CRITICAL: ONE MORE HIT = GAME OVER!');
+        } else {
+            console.log("❌ 4-HIT WARNING BLOCKED - Already shown");
+        }
+    } else if (this.health <= 0) {
+        // Secondary condition: health depletion
+        this.analytics.deathCause = 'health_depleted';
+        this.showCenterWarning('💀 REPUTATION DESTROYED! GAME OVER!');
+        this.endGame();
+        return;
     }
     
     // Track missed projectile for perfect minute achievement
@@ -5920,7 +5941,42 @@ updateIntegratedStageMeter() {
         this.analytics.events.push(event);
     }
 
+   showCenterWarning(message) {
+    const warningDiv = document.createElement('div');
+    warningDiv.textContent = message;
+    warningDiv.style.cssText = `
+        position: fixed;
+        top: 200px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 12px;
+        padding: 12px 24px;
+        color: white;
+        font-weight: bold;
+        font-size: 1.1em;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        text-align: center;
+        z-index: 1005;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        animation: slideDown 0.5s ease;
+    `;
+    document.body.appendChild(warningDiv);
+    
+    setTimeout(() => {
+        if (warningDiv.parentNode) {
+            document.body.removeChild(warningDiv);
+        }
+    }, 2000);
+}
+
     handleBlock(projectile) {
+          // Reset warning flags on successful block
+        this.warningShown3 = false;
+        this.warningShown4 = false;
         this.score += 10;
         this.updateCombo();
         
@@ -6712,6 +6768,10 @@ transitionToStage(newStage) {
     // Reset consecutive hit tracking
     console.log("🔄 START GAME: Resetting consecutive hits");
     this.consecutiveHits = 0;
+
+    // Reset warning flags
+    this.warningShown3 = false;
+    this.warningShown4 = false;
 
     // Reset all achievement states and counters
     Object.values(this.achievements).forEach(achievement => {
