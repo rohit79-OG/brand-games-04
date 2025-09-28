@@ -1968,6 +1968,9 @@ class StainSlayerGame {
         this.audioBuffers = {};
         this.musicLoops = {};
         this.soundVariations = {};
+        this.currentMusicLoop = null;
+        this.musicInitialized = false;
+        this.continuousMusicPlaying = false;
         
         // Stage management
         this.stageGroup = null;
@@ -1993,6 +1996,12 @@ class StainSlayerGame {
         this.touchStartY = 0;
         this.touchStartTime = 0;
 
+        // Mobile dash mechanics
+        this.dashCooldown = 0;
+        this.dashVelocity = 0;
+        this.dashDuration = 0;
+        this.lastTapTime = 0;
+
         // Consecutive hit tracking system
         this.consecutiveHits = 0;
         this.maxConsecutiveHits = 5;
@@ -2000,6 +2009,11 @@ class StainSlayerGame {
         // Warning overlap prevention
         this.warningShown3 = false;
         this.warningShown4 = false;
+        this.criticalWarningTime = 0;
+
+        // Global mute system
+        this.globalMuted = false;
+        this.audioLevelsBeforeMute = null;
 
         // Debug verification
         console.log("🎮 CONSTRUCTOR: Consecutive hit system initialized", this.consecutiveHits);
@@ -2164,7 +2178,7 @@ updateDebugOverlay() {
                 const touch = e.changedTouches[0];
                 const deltaX = touch.clientX - this.touchStartX;
                 const deltaY = touch.clientY - this.touchStartY;
-                
+                const swipeSpeed = Math.abs(deltaX) / touchDuration;
                 // Calculate dynamic bounds for swipes
                 const aspectRatio = window.innerWidth / window.innerHeight;
                 const vFov = this.camera.fov * Math.PI / 180;
@@ -2179,14 +2193,23 @@ updateDebugOverlay() {
                 
                 // Detect swipes
                 if (touchDuration < 500) {
-                    if (Math.abs(deltaX) > 50) {
-                        // Horizontal swipe - reduced movement on mobile
-                        const moveAmount = this.isMobile ? 1.2 : 1.5;
+                    if (Math.abs(deltaX) > 50 && swipeSpeed > 0.3) {
+                        // Fast swipe triggers dash
+                        if (this.dashCooldown <= 0) {
+                            const dashDirection = deltaX > 0 ? 1 : -1;
+                            this.dashVelocity = dashDirection * 8; // Fast dash speed
+                            this.dashDuration = 0.3; // 300ms dash
+                            this.dashCooldown = 1.0; // 1 second cooldown
+                            this.playSound('push'); // Audio feedback
+                        }
+                    } else if (Math.abs(deltaX) > 30) {
+                        // Normal swipe - standard movement
+                        const moveAmount = this.isMobile ? 1.0 : 1.5;
                         if (deltaX > 0) {
-                            // Swipe right - check boundary
+                            
                             this.player.position.x = Math.min(mobileBoundLimit, this.player.position.x + moveAmount);
                         } else {
-                            // Swipe left - check boundary
+                           
                             this.player.position.x = Math.max(-mobileBoundLimit, this.player.position.x - moveAmount);
                         }
                     }
@@ -2310,81 +2333,60 @@ updateDebugOverlay() {
         
         // Setup audio controls
         this.setupAudioControls();
+
+        // Initialize background music WAV file
+        this.backgroundMusic = new Audio('https://assets.codepen.io/t-24779/stain-slayer-background-loop.wav');
+        this.backgroundMusic.loop = true;
+        this.backgroundMusic.volume = 0.12; 
+        this.backgroundMusic.preload = 'auto';
         
-        // Initialize stage music (procedural generation)
-        this.initializeStageMusicLoops();
-        
-        // Initialize sound variations
-        this.initializeSoundVariations();
+        // Handle loading errors gracefully
+        this.backgroundMusic.addEventListener('error', () => {
+            console.warn('Background music failed to load');
+        });
         
         this.audioInitialized = true;
     }
     
-    setupAudioControls() {
-        const muteBtn = document.getElementById('muteBtn');
-        const musicVolumeSlider = document.getElementById('musicVolume');
-        const sfxVolumeSlider = document.getElementById('sfxVolume');
-        const volumeSliders = document.querySelector('.volume-sliders');
+   setupAudioControls() {
+    const muteBtn = document.getElementById('muteBtn');
+    const musicVolumeSlider = document.getElementById('musicVolume');
+    const sfxVolumeSlider = document.getElementById('sfxVolume');
+    const volumeSliders = document.querySelector('.volume-sliders');
+    
+    if (muteBtn) {
+        muteBtn.addEventListener('click', () => {
+            this.toggleGlobalMute();
+            muteBtn.textContent = this.globalMuted ? '🔇' : '🔊';
+            muteBtn.classList.toggle('muted', this.globalMuted);
+        });
         
-        if (muteBtn) {
-            muteBtn.addEventListener('click', () => {
-                this.toggleMute();
-                muteBtn.textContent = this.masterVolume > 0 ? '🔊' : '🔇';
-                muteBtn.classList.toggle('muted', this.masterVolume === 0);
+        // Show/hide volume sliders on desktop
+        if (!this.isMobile) {
+            muteBtn.addEventListener('mouseenter', () => {
+                if (volumeSliders) volumeSliders.classList.add('show');
             });
             
-            // Show/hide volume sliders on desktop
-            if (!this.isMobile) {
-                muteBtn.addEventListener('mouseenter', () => {
-                    if (volumeSliders) volumeSliders.classList.add('show');
-                });
-                
-                document.querySelector('.audio-controls').addEventListener('mouseleave', () => {
-                    if (volumeSliders) volumeSliders.classList.remove('show');
-                });
-            }
-        }
-        
-        if (musicVolumeSlider) {
-            musicVolumeSlider.addEventListener('input', (e) => {
-                this.musicVolume = e.target.value / 100;
-                if (this.musicGainNode) {
-                    this.musicGainNode.gain.setValueAtTime(
-                        this.musicVolume,
-                        this.audioContext.currentTime
-                    );
-                }
-            });
-        }
-        
-        if (sfxVolumeSlider) {
-            sfxVolumeSlider.addEventListener('input', (e) => {
-                this.sfxVolume = e.target.value / 100;
-                if (this.sfxGainNode) {
-                    this.sfxGainNode.gain.setValueAtTime(
-                        this.sfxVolume,
-                        this.audioContext.currentTime
-                    );
-                }
+            document.querySelector('.audio-controls').addEventListener('mouseleave', () => {
+                if (volumeSliders) volumeSliders.classList.remove('show');
             });
         }
     }
     
-    toggleMute() {
-        if (this.masterVolume > 0) {
-            this.previousVolume = this.masterVolume;
-            this.masterVolume = 0;
-        } else {
-            this.masterVolume = this.previousVolume || 0.7;
-        }
-        
-        if (this.masterGainNode) {
-            this.masterGainNode.gain.setValueAtTime(
-                this.masterVolume,
-                this.audioContext.currentTime
-            );
-        }
+    if (musicVolumeSlider) {
+        musicVolumeSlider.addEventListener('input', (e) => {
+            this.musicVolume = e.target.value / 100;
+            this.updateAudioLevels();
+        });
     }
+    
+    if (sfxVolumeSlider) {
+        sfxVolumeSlider.addEventListener('input', (e) => {
+            this.sfxVolume = e.target.value / 100;
+            this.updateAudioLevels();
+        });
+    }
+}
     
     initializeStageMusicLoops() {
         // Create procedural music loops for each stage
@@ -2832,7 +2834,7 @@ updateDebugOverlay() {
     }
     
     playSound(type) {
-        if (!this.audioContext || !this.audioInitialized) return;
+         if (!this.audioContext || !this.audioInitialized || this.globalMuted) return;
         
         // Play sound variations
         if (this.soundVariations[type]) {
@@ -2872,22 +2874,31 @@ updateDebugOverlay() {
         }
     }
     
-    startStageMusic() {
-        // Stop current music
-        this.stopMusic();
-        
-        // Start new stage music
-        if (this.musicLoops[this.currentStage]) {
-            this.musicLoops[this.currentStage]();
-        }
+
+   startStageMusic() {
+     // Stop current music
+     this.stopMusic();
+     
+     if (this.globalMuted) return;
+     
+    // Start WAV background music
+    if (this.backgroundMusic) {
+        this.backgroundMusic.currentTime = 0; // Reset to beginning
+        this.backgroundMusic.volume = 0.12;
+        this.backgroundMusic.play().catch(error => {
+            console.warn('Background music play failed:', error);
+        });
+        console.log("🎵 Background music started");
     }
-    
-    stopMusic() {
-        if (this.currentMusicLoop) {
-            clearTimeout(this.currentMusicLoop);
-            this.currentMusicLoop = null;
-        }
-    }
+ }
+ 
+ stopMusic() {
+     if (this.currentMusicLoop) {
+         clearInterval(this.currentMusicLoop);
+         this.currentMusicLoop = null;
+         console.log("🎵 Music loop stopped");
+     }
+ }
     
     async loadAssets() {
         // Simulate loading
@@ -4805,12 +4816,20 @@ getStainColor(emoji) {
     
     // UNIFIED GAME OVER SYSTEM - Check consecutive hits first, then health
     if (this.consecutiveHits >= this.maxConsecutiveHits) {
-        // Immediate game over on 5 consecutive hits
-        console.log("🔥 GAME OVER TRIGGER - Flag check not needed");
-        this.analytics.deathCause = 'consecutive_failures';
-        this.showCenterWarning('💀 5 CONSECUTIVE HITS! GAME OVER!');
-        this.endGame();
-        return;
+        // Ensure at least 2 seconds passed since critical warning
+        const timeSinceWarning = Date.now() - this.criticalWarningTime;
+        if (timeSinceWarning >= 2000 || this.criticalWarningTime === 0) {
+            console.log("🔥 GAME OVER TRIGGER - Grace period expired or no warning given");
+            this.analytics.deathCause = 'consecutive_failures';
+            this.showCenterWarning('💀 5 CONSECUTIVE HITS! GAME OVER!');
+            this.endGame();
+            return;
+        } else {
+            // Still in grace period - show countdown
+            const remaining = Math.ceil((2000 - timeSinceWarning) / 1000);
+            console.log(`⏰ Grace period: ${remaining} second(s) remaining`);
+            return; // Don't end game yet
+        }
     } else if (this.consecutiveHits === 3) {
         // Warning at 3 hits - prevent notification overlap
         console.log("🚨 3-HIT CHECK - warningShown3:", this.warningShown3);
@@ -4828,6 +4847,7 @@ getStainColor(emoji) {
             this.warningShown4 = true;
             console.log("✅ SHOWING 4-HIT WARNING");
             this.showCenterWarning('🚨 CRITICAL: ONE MORE HIT = GAME OVER!');
+            this.criticalWarningTime = Date.now(); // Start grace period timer
         } else {
             console.log("❌ 4-HIT WARNING BLOCKED - Already shown");
         }
@@ -5917,6 +5937,76 @@ updateIntegratedStageMeter() {
         this.refreshAchievementVisuals();
     }
 
+toggleGlobalMute() {
+    this.globalMuted = !this.globalMuted;
+    console.log("🔊 Global mute toggled:", this.globalMuted);
+    
+    if (this.globalMuted) {
+        // Store current levels and mute everything
+        this.audioLevelsBeforeMute = {
+            master: this.masterVolume,
+            music: this.musicVolume,
+            sfx: this.sfxVolume
+        };
+        this.masterVolume = 0;
+        this.musicVolume = 0;
+        this.sfxVolume = 0;
+        this.stopMusic(); // Stop current music
+        
+        // Mute background music
+        if (this.backgroundMusic) {
+            this.backgroundMusic.volume = 0;
+        }
+    } else {
+        // Restore previous levels
+        if (this.audioLevelsBeforeMute) {
+            this.masterVolume = this.audioLevelsBeforeMute.master;
+            this.musicVolume = this.audioLevelsBeforeMute.music;
+            this.sfxVolume = this.audioLevelsBeforeMute.sfx;
+        } else {
+            // Default levels if no previous state
+            this.masterVolume = 0.7;
+            this.musicVolume = 0.5;
+            this.sfxVolume = 0.7;
+        }
+        // Restart music if game is running
+        if (this.backgroundMusic && this.isRunning) {
+            this.backgroundMusic.volume = 0.15;
+            this.backgroundMusic.play().catch(error => {
+                console.warn('Failed to resume background music:', error);
+            });
+        }
+        if (this.isRunning) {
+            this.startStageMusic();
+        }
+    }
+    
+    this.updateAudioLevels();
+}
+
+updateAudioLevels() {
+    if (!this.audioContext || !this.audioInitialized) return;
+    
+    if (this.masterGainNode) {
+        this.masterGainNode.gain.setValueAtTime(
+            this.masterVolume,
+            this.audioContext.currentTime
+        );
+    }
+    if (this.musicGainNode) {
+        this.musicGainNode.gain.setValueAtTime(
+            this.musicVolume,
+            this.audioContext.currentTime
+        );
+    }
+    if (this.sfxGainNode) {
+        this.sfxGainNode.gain.setValueAtTime(
+            this.sfxVolume,
+            this.audioContext.currentTime
+        );
+    }
+}
+
     // Analytics & Tracking Methods
     generateSessionId() {
         return 'ss_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -5977,6 +6067,7 @@ updateIntegratedStageMeter() {
           // Reset warning flags on successful block
         this.warningShown3 = false;
         this.warningShown4 = false;
+        this.criticalWarningTime = 0;
         this.score += 10;
         this.updateCombo();
         
@@ -6137,48 +6228,6 @@ updateIntegratedStageMeter() {
         };
         
         animateParticles();
-    }
-    
-    playSound(type) {
-        if (!this.audioContext) return;
-        
-        const oscillator = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
-        
-        switch(type) {
-            case 'block':
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(523.25, this.audioContext.currentTime);
-                gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
-                break;
-            case 'hit':
-                oscillator.type = 'triangle';
-                oscillator.frequency.setValueAtTime(200, this.audioContext.currentTime);
-                gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.2);
-                break;
-            case 'push':
-                oscillator.type = 'sawtooth';
-                oscillator.frequency.setValueAtTime(100, this.audioContext.currentTime);
-                oscillator.frequency.exponentialRampToValueAtTime(400, this.audioContext.currentTime + 0.1);
-                gainNode.gain.setValueAtTime(0.2, this.audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
-                break;
-            case 'jump':
-                oscillator.type = 'square';
-                oscillator.frequency.setValueAtTime(400, this.audioContext.currentTime);
-                oscillator.frequency.exponentialRampToValueAtTime(600, this.audioContext.currentTime + 0.1);
-                gainNode.gain.setValueAtTime(0.2, this.audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
-                break;
-        }
-        
-        oscillator.start(this.audioContext.currentTime);
-        oscillator.stop(this.audioContext.currentTime + 0.2);
     }
     
  updatePlayer(deltaTime) {
@@ -6772,6 +6821,7 @@ transitionToStage(newStage) {
     // Reset warning flags
     this.warningShown3 = false;
     this.warningShown4 = false;
+    this.criticalWarningTime = 0;
 
     // Reset all achievement states and counters
     Object.values(this.achievements).forEach(achievement => {
@@ -6823,6 +6873,14 @@ transitionToStage(newStage) {
     
     this.isRunning = true;
     this.gameLoop();
+
+    // Start background music (handle autoplay restrictions)
+    if (this.backgroundMusic && !this.globalMuted) {
+        this.backgroundMusic.play().catch(error => {
+            console.log('Autoplay prevented - music will start on first user interaction');
+            // Music will start when user clicks mute button or interacts
+        });
+    }
 
     // Show initial stage notification
     this.showNotification('Political Rally', 'linear-gradient(135deg, rgba(70, 130, 180, 0.8), rgba(100, 149, 237, 0.8))');
@@ -6958,38 +7016,59 @@ cleanupPowerUps() {
         this.renderer.render(this.scene, this.camera);
     }
     
-    endGame() {
-        this.isRunning = false;
-        this.hideGameHUD();
-        
-        const sessionTime = Math.floor((Date.now() - this.gameStartTime) / 1000);
-        const accuracy = this.totalProjectiles > 0 ? 
-            Math.floor((this.blockedCount / this.totalProjectiles) * 100) : 0;
-        
-        document.getElementById('finalScore').textContent = this.score;
-        document.getElementById('sessionTime').textContent = sessionTime;
-        document.getElementById('accuracyPercent').textContent = accuracy;
-        document.getElementById('hitStats').textContent = `${this.blockedCount}/${this.totalProjectiles}`;
-        document.getElementById('blockedCount').textContent = this.blockedCount;
-        
-        const performanceRating = this.calculatePerformanceRating();
-        const ratingElement = document.getElementById('performanceRating');
-        if (ratingElement) {
-            ratingElement.textContent = performanceRating.message;
-            ratingElement.style.color = performanceRating.color;
-        }
-        
-        generateQRCode();
-        
-        setTimeout(() => {
-            if (!window.product3DViewer) {
-                window.product3DViewer = new Product3DViewer('product3DCanvas', 'product3DContainer');
-            }
-        }, 500);
-        
-        this.showResultsScreen();
+ endGame() {
+    this.isRunning = false;
+
+    // COMPLETE AUDIO CLEANUP
+    this.stopMusic();
+    this.continuousMusicPlaying = false; // Stop continuous music flag
+
+    // Stop background music
+    if (this.backgroundMusic) {
+        this.backgroundMusic.pause();
+        this.backgroundMusic.currentTime = 0;
     }
     
+    if (this.audioContext && this.audioContext.state === 'running') {
+        this.audioContext.suspend();
+    }
+    
+    // Clear any ongoing audio loops - FIXED to use clearInterval
+    if (this.currentMusicLoop) {
+        clearInterval(this.currentMusicLoop); // Changed from clearTimeout
+        this.currentMusicLoop = null;
+    }
+    
+    this.hideGameHUD();
+    
+    const sessionTime = Math.floor((Date.now() - this.gameStartTime) / 1000);
+    const accuracy = this.totalProjectiles > 0 ? 
+        Math.floor((this.blockedCount / this.totalProjectiles) * 100) : 0;
+    
+    document.getElementById('finalScore').textContent = this.score;
+    document.getElementById('sessionTime').textContent = sessionTime;
+    document.getElementById('accuracyPercent').textContent = accuracy;
+    document.getElementById('hitStats').textContent = `${this.blockedCount}/${this.totalProjectiles}`;
+    document.getElementById('blockedCount').textContent = this.blockedCount;
+    
+    const performanceRating = this.calculatePerformanceRating();
+    const ratingElement = document.getElementById('performanceRating');
+    if (ratingElement) {
+        ratingElement.textContent = performanceRating.message;
+        ratingElement.style.color = performanceRating.color;
+    }
+    
+    generateQRCode();
+    
+    setTimeout(() => {
+        if (!window.product3DViewer) {
+            window.product3DViewer = new Product3DViewer('product3DCanvas', 'product3DContainer');
+        }
+    }, 500);
+    
+    this.showResultsScreen();
+}
+
     calculatePerformanceRating() {
         const accuracy = this.totalProjectiles > 0 ? 
             Math.floor((this.blockedCount / this.totalProjectiles) * 100) : 0;
