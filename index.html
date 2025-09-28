@@ -1845,6 +1845,11 @@ class StainSlayerGame {
     constructor() {
         this.debugMode = true; // Add this line
     console.log("Debug mode explicitly enabled:", this.debugMode);
+    
+    // Mobile debug system
+        this.mobileDebugEnabled = this.isMobile && window.location.search.includes('debug=1');
+        this.debugStats = {};
+        this.debugUpdateInterval = null;
 
         this.canvas = document.getElementById('gameCanvas');
         this.scene = null;
@@ -2076,6 +2081,10 @@ updateDebugOverlay() {
         this.loadAssets().then(() => {
             this.hideLoadingScreen();
             this.showStartScreen();
+
+            // Initialize mobile debug if enabled
+            if (this.mobileDebugEnabled) {
+                this.initializeMobileDebug();             }
         });
     }
     
@@ -2451,6 +2460,130 @@ updateDebugOverlay() {
         });
     }
 }
+
+
+    
+    initializeMobileDebug() {
+        // Create debug overlay
+        this.debugOverlay = document.createElement('div');
+        this.debugOverlay.id = 'mobileDebugOverlay';
+        this.debugOverlay.style.cssText = `
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 280px;
+            max-height: 400px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            font-family: monospace;
+            font-size: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 10000;
+            overflow-y: auto;
+            pointer-events: none;
+        `;
+        document.body.appendChild(this.debugOverlay);
+        
+        // Add toggle button
+        this.debugToggle = document.createElement('button');
+        this.debugToggle.textContent = 'DEBUG';
+        this.debugToggle.style.cssText = `
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 10001;
+            background: rgba(255, 0, 0, 0.7);
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+        `;
+        this.debugToggle.addEventListener('click', () => {
+            this.debugOverlay.style.display = 
+                this.debugOverlay.style.display === 'none' ? 'block' : 'none';
+        });
+        document.body.appendChild(this.debugToggle);
+        
+        // Start debug updates
+        this.startMobileDebugUpdates();
+    }
+    
+    startMobileDebugUpdates() {
+        this.debugUpdateInterval = setInterval(() => {
+            this.updateMobileDebugDisplay();
+        }, 500); // Update every 500ms
+    }
+    
+    updateMobileDebugDisplay() {
+        if (!this.debugOverlay) return;
+        
+        const audioBtn = document.getElementById('muteBtn');
+        const audioContext = this.audioContext;
+        
+        // Collect debug stats
+        this.debugStats = {
+            // Audio Debug
+            audioContextState: audioContext ? audioContext.state : 'none',
+            globalMuted: this.globalMuted,
+            audioInitialized: this.audioInitialized,
+            backgroundMusicPaused: this.backgroundMusic ? this.backgroundMusic.paused : 'no-music',
+            backgroundMusicVolume: this.backgroundMusic ? this.backgroundMusic.volume : 'no-music',
+            
+            // Button Debug
+            buttonExists: !!audioBtn,
+            buttonVisible: audioBtn ? getComputedStyle(audioBtn).display !== 'none' : false,
+            buttonText: audioBtn ? audioBtn.textContent : 'none',
+            buttonZIndex: audioBtn ? getComputedStyle(audioBtn).zIndex : 'none',
+            
+            // Touch Debug
+            touchSupport: 'ontouchstart' in window,
+            screenSize: `${window.innerWidth}x${window.innerHeight}`,
+            isMobileDetected: this.isMobile,
+            
+            // Game Debug
+            gameRunning: this.isRunning,
+            currentStage: this.currentStage,
+            score: this.score,
+            projectileCount: this.projectiles.length,
+            
+            // Performance
+            timestamp: new Date().toLocaleTimeString()
+        };
+        
+        // Update display
+        this.debugOverlay.innerHTML = `
+            <strong>MOBILE DEBUG</strong><br>
+            <strong>AUDIO:</strong><br>
+            Context: ${this.debugStats.audioContextState}<br>
+            Muted: ${this.debugStats.globalMuted}<br>
+            Initialized: ${this.debugStats.audioInitialized}<br>
+            BGM Paused: ${this.debugStats.backgroundMusicPaused}<br>
+            BGM Volume: ${this.debugStats.backgroundMusicVolume}<br>
+            <br>
+            <strong>BUTTON:</strong><br>
+            Exists: ${this.debugStats.buttonExists}<br>
+            Visible: ${this.debugStats.buttonVisible}<br>
+            Text: ${this.debugStats.buttonText}<br>
+            Z-Index: ${this.debugStats.buttonZIndex}<br>
+            <br>
+            <strong>DEVICE:</strong><br>
+            Touch: ${this.debugStats.touchSupport}<br>
+            Screen: ${this.debugStats.screenSize}<br>
+            Mobile: ${this.debugStats.isMobileDetected}<br>
+            <br>
+            <strong>GAME:</strong><br>
+            Running: ${this.debugStats.gameRunning}<br>
+            Stage: ${this.debugStats.currentStage}<br>
+            Score: ${this.debugStats.score}<br>
+            Projectiles: ${this.debugStats.projectileCount}<br>
+            <br>
+            Updated: ${this.debugStats.timestamp}
+        `;
+    }
+
+
     
     initializeStageMusicLoops() {
         // Create procedural music loops for each stage
