@@ -1987,6 +1987,13 @@ class StainSlayerGame {
         this.touchStartX = 0;
         this.touchStartY = 0;
         this.touchStartTime = 0;
+
+        // Consecutive hit tracking system
+        this.consecutiveHits = 0;
+        this.maxConsecutiveHits = 5;
+
+        // Debug verification
+        console.log("🎮 CONSTRUCTOR: Consecutive hit system initialized", this.consecutiveHits);
         
         this.init();
 
@@ -4579,7 +4586,7 @@ projectileGroup.add(pointsSprite);
         this.totalProjectiles++;
     }
     
- updateProjectiles(deltaTime) {
+updateProjectiles(deltaTime) {
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
         const projectile = this.projectiles[i];
         
@@ -4605,19 +4612,22 @@ projectileGroup.add(pointsSprite);
         const collisionRadius = this.isMobile ? 3.2 : 2.8;
         
         if (playerDistance < collisionRadius) {
-            // Multiple blocking conditions
+            // Multiple blocking conditions - REQUIRE ACTIVE PLAYER INPUT
             const shieldBlock = this.player.shield.visible;
             const jumpBlock = this.isJumping && yDiff < 2.2 && xDiff < 1.8;
-            const horizontalBlock = xDiff < 2.0 && yDiff < 1.2;
-            const proximityBlock = playerDistance < 1.5;
             
             // Special handling for side-spawned projectiles based on trajectory
             const projectileFromSide = Math.abs(projectile.position.x) > Math.abs(projectile.position.z);
-            const sideTrajectoryBlock = projectileFromSide && xDiff < 2.5 && yDiff < 1.8 && zDiff < 3.5;
+            const sideTrajectoryBlock = projectileFromSide && xDiff < 1.5 && yDiff < 1.2 && zDiff < 2.0;
             
-            const canBlock = shieldBlock || jumpBlock || horizontalBlock || sideTrajectoryBlock || proximityBlock;
+            // Only allow blocking with ACTIVE player input (shield, jump, or precise positioning)
+            const canBlock = shieldBlock || jumpBlock || sideTrajectoryBlock;
             
             if (canBlock) {
+                // Reset consecutive hits ONLY on successful active block
+                console.log("🛡️ BLOCK: Resetting consecutive hits from", this.consecutiveHits, "to 0");
+                this.consecutiveHits = 0;
+                
                 this.handleBlock(projectile);
                 this.scene.remove(projectile);
                 this.projectiles.splice(i, 1);
@@ -4752,58 +4762,68 @@ getStainColor(emoji) {
     return stainColors[emoji] || 0x888888;
 }
     
-    handleBlock(projectile) {
-        this.score += 10;
-        this.updateCombo();
-        
-        if (this.superShieldActive) {
-            this.score += 5;
-            this.fabPower = Math.min(this.fabPowerMax, this.fabPower + 2);
-        }
-        
-        this.fabPower = Math.min(this.fabPowerMax, this.fabPower + 1);
-        this.blockedCount++;
-        this.updateScore();
-        this.playSound('block');
-        // Track action for perfect minute achievement
-        this.recentActions.push({
-            time: Date.now(),
-            blocked: true
-        });
-        this.createBlockParticles(projectile.position);
-
-        // Check achievements immediately after blocking
-        this.checkAchievements();
-         // Update achievement visuals in real-time
-        this.refreshAchievementVisuals();
+ handleHit(projectile) {
+    console.log("❤️ HEALTH DEBUG - Before hit:", this.health);
+    console.log("💥 HANDLE HIT CALLED - Before increment:", this.consecutiveHits);
+    
+    // Track consecutive hits for game over condition
+    this.consecutiveHits++;
+    console.log("💥 HANDLE HIT - After increment:", this.consecutiveHits);
+    
+    // Warning notifications at 3-4 consecutive hits (AFTER increment)
+    if (this.consecutiveHits === 3) {
+        console.log("🚨 NOTIFICATION TRIGGER: 3 hits warning at", Date.now());
+        this.showNotification('⚠️ Warning: 3 hits in a row! Block the next ones!');
+    } else if (this.consecutiveHits === 4) {
+        console.log("🚨 NOTIFICATION TRIGGER: 4 hits danger at", Date.now());
+        this.showNotification('🚨 DANGER! One more hit = GAME OVER!');
     }
     
-    // Analytics & Tracking Methods
-    generateSessionId() {
-        return 'ss_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    console.log("📊 CONSECUTIVE HITS STATUS:", this.consecutiveHits, "of", this.maxConsecutiveHits);
+    
+    // Reduce health (reputation)
+    this.health -= 5;
+    console.log("❤️ HEALTH DEBUG - After hit:", this.health);
+    if (this.health < 0) this.health = 0;
+    this.updateHealth();
+    this.playSound('hit');
+    
+    // CRITICAL: Do NOT call updateCombo() here - this was causing incorrect scoring
+    this.resetCombo(); // Reset combo instead
+    
+    // Stage-specific hit effects
+    if (this.currentStage === 'street' && (projectile.emoji === '☕' || projectile.emoji === '🥔')) {
+        this.greaseBlurActive = true;
     }
     
-    trackEvent(eventName, eventData = {}) {
-        const event = {
-            sessionId: this.analytics.sessionId,
-            timestamp: Date.now(),
-            event: eventName,
-            data: eventData,
-            stage: this.currentStage,
-            score: this.score,
-            health: this.health
-        };
-        
-        // Log to console for debugging
-        console.log('Analytics Event:', event);
-        
-        // In production, you would send this to your analytics server
-        // Example: fetch('/api/analytics', { method: 'POST', body: JSON.stringify(event) });
-        
-        // Store locally for session summary
-        if (!this.analytics.events) this.analytics.events = [];
-        this.analytics.events.push(event);
+    if (this.currentStage === 'wedding') {
+        this.splatterMeter = Math.min(100, this.splatterMeter + 15);
     }
+    
+    if (projectile.isPowerHit) {
+        this.health -= 5; // Extra damage for power hits
+        console.log("❤️ POWER HIT - Extra damage, health now:", this.health);
+    }
+    
+    // Game over after 5 consecutive hits OR health depleted
+    if (this.consecutiveHits >= this.maxConsecutiveHits) {
+        this.analytics.deathCause = 'consecutive_failures';
+        this.showNotification('💀 5 consecutive hits! Game Over!');
+        setTimeout(() => {
+            this.endGame();
+        }, 1000);
+        return;
+    } else if (this.health <= 0) {
+        this.analytics.deathCause = 'health_depleted';
+        this.endGame();
+    }
+    
+    // Track missed projectile for perfect minute achievement
+    this.recentActions.push({
+        time: Date.now(),
+        blocked: false
+    });
+}
     
     trackFPS() {
         const fps = 1 / this.clock.getDelta();
@@ -5876,7 +5896,56 @@ updateIntegratedStageMeter() {
         this.refreshAchievementVisuals();
     }
 
+    // Analytics & Tracking Methods
+    generateSessionId() {
+        return 'ss_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
 
+    trackEvent(eventName, eventData = {}) {
+        const event = {
+            sessionId: this.analytics.sessionId,
+            timestamp: Date.now(),
+            event: eventName,
+            data: eventData,
+            stage: this.currentStage,
+            score: this.score,
+            health: this.health
+        };
+        
+        // Log to console for debugging
+        console.log('Analytics Event:', event);
+        
+        // Store locally for session summary
+        if (!this.analytics.events) this.analytics.events = [];
+        this.analytics.events.push(event);
+    }
+
+    handleBlock(projectile) {
+        this.score += 10;
+        this.updateCombo();
+        
+        if (this.superShieldActive) {
+            this.score += 5;
+            this.fabPower = Math.min(this.fabPowerMax, this.fabPower + 2);
+        }
+        
+        this.fabPower = Math.min(this.fabPowerMax, this.fabPower + 1);
+        this.blockedCount++;
+        this.updateScore();
+        this.playSound('block');
+        
+        // Track action for perfect minute achievement
+        this.recentActions.push({
+            time: Date.now(),
+            blocked: true
+        });
+        
+        this.createBlockParticles(projectile.position);
+        
+        // Check achievements immediately after blocking
+        this.checkAchievements();
+        this.refreshAchievementVisuals();
+    }
     
     updateAchievementDisplay(newUnlocks = []) {
         const achievementList = document.getElementById('achievementList');
@@ -5921,37 +5990,6 @@ updateIntegratedStageMeter() {
                     }
                 }
             }
-        });
-    }
-
-
-    handleHit(projectile) {
-        this.health -= 5;
-        if (this.health < 0) this.health = 0;
-        this.updateHealth();
-        this.playSound('hit');
-        this.resetCombo();
-        
-        // Stage-specific hit effects
-        if (this.currentStage === 'street' && (projectile.emoji === '☕' || projectile.emoji === '🥔')) {
-            this.greaseBlurActive = true;
-        }
-        
-        if (this.currentStage === 'wedding') {
-            this.splatterMeter = Math.min(100, this.splatterMeter + 15);
-        }
-        
-        if (projectile.isPowerHit) {
-            this.health -= 5; // Extra damage for power hits
-        }
-        
-        if (this.health <= 0) {
-            this.endGame();
-        }
-        // Track missed projectile for perfect minute achievement
-       this.recentActions.push({
-            time: Date.now(),
-            blocked: false
         });
     }
     
@@ -6323,6 +6361,7 @@ initNotificationSystem() {
 }
 
 queueNotification(message, duration = 2500) {
+    console.log("📢 QUEUE NOTIFICATION:", message, "Queue length:", this.notificationQueue.length);
     this.notificationQueue.push({ message, duration, timestamp: Date.now() });
     
     if (!this.notificationProcessing) {
@@ -6333,9 +6372,11 @@ queueNotification(message, duration = 2500) {
 processNotificationQueue() {
     if (this.notificationQueue.length === 0) {
         this.notificationProcessing = false;
+        console.log("📢 QUEUE EMPTY - Processing stopped");
         return;
     }
     
+    console.log("📢 PROCESSING NOTIFICATION QUEUE - Length:", this.notificationQueue.length);
     this.notificationProcessing = true;
     const notification = this.notificationQueue.shift();
     this.displayNotification(notification);
@@ -6623,20 +6664,22 @@ transitionToStage(newStage) {
         }
     }
     
-    updateHealth() {
-        const healthBar = document.getElementById('healthBar');
-        if (healthBar) {
-            healthBar.style.width = this.health + '%';
-             // Update health bar color based on health level
-            if (this.health > 60) {
-                healthBar.className = 'hud-bar-fill health-bar';
-            } else if (this.health > 30) {
-               healthBar.className = 'hud-bar-fill health-bar warning';
-            } else {
-               healthBar.className = 'hud-bar-fill health-bar danger';
-            }
+   updateHealth() {
+    const healthBar = document.getElementById('healthBar');
+    if (healthBar) {
+        const healthPercent = (this.health / 200) * 100; // Convert to percentage
+        healthBar.style.width = healthPercent + '%';
+        
+        // Update health bar color based on health level
+        if (this.health > 120) { // 60% of 200
+            healthBar.className = 'hud-bar-fill health-bar';
+        } else if (this.health > 60) { // 30% of 200
+            healthBar.className = 'hud-bar-fill health-bar warning';
+        } else {
+            healthBar.className = 'hud-bar-fill health-bar danger';
         }
     }
+}
     
   startGame() {
     this.hideStartScreen();
@@ -6665,6 +6708,10 @@ transitionToStage(newStage) {
     
     // Reset achievements for new game (optional - could persist)
     this.usedPowerUps = new Set();
+
+    // Reset consecutive hit tracking
+    console.log("🔄 START GAME: Resetting consecutive hits");
+    this.consecutiveHits = 0;
 
     // Reset all achievement states and counters
     Object.values(this.achievements).forEach(achievement => {
