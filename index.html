@@ -158,8 +158,8 @@
 /* Mobile-specific centering for start screen */
 @media (max-width: 768px) {
     .start-screen {
-        padding: max(env(safe-area-inset-top), 2vh) 20px max(env(safe-area-inset-bottom), 20px) 20px !important;
-        justify-content: flex-start !important; /* Position from top instead of center */
+        padding: max(env(safe-area-inset-top), 20px) 20px max(env(safe-area-inset-bottom), 20px) 20px !important;
+        justify-content: center !important; /* Keep centered */
         min-height: 100vh;
         min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     }
@@ -168,8 +168,8 @@
        max-height: 85vh !important;
        max-height: calc(85vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
        overflow-y: auto !important;
-       padding: 40px !important;
-       margin: auto 0 !important;
+       padding: 30px !important;
+       margin: 0 !important; /* Removed forced vertical margins */
     }
 }
         .fab-logo-img {
@@ -1128,8 +1128,8 @@
 /* Mobile-specific centering for results screen */
 @media (max-width: 768px) {
     .results-screen {
-        padding: max(env(safe-area-inset-top), 2vh) 20px max(env(safe-area-inset-bottom), 20px) 20px !important;
-        justify-content: flex-start !important; /* Position from top instead of center */
+        padding: max(env(safe-area-inset-top), 20px) 20px max(env(safe-area-inset-bottom), 20px) 20px !important;
+        justify-content: center !important; /* Keep centered */
         min-height: 100vh;
         min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     }
@@ -1138,8 +1138,8 @@
         max-height: 85vh !important;
         max-height: calc(85vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
         overflow-y: auto !important;
-        padding: 30px !important;
-        margin: auto 0 !important;
+        padding: 25px !important;
+        margin: 0 !important; /* Removed forced vertical margins */
     }
 }
 
@@ -1467,7 +1467,7 @@
     <div class="powerup-indicator">
         <div id="superShieldIcon" class="powerup-icon" title="Super Shield (Q)" data-power="shield">🛡️</div>
         <div id="slowMotionIcon" class="powerup-icon" title="Slow Motion (E)" data-power="slow">⏰</div>
-        <div id="fabBombIcon" class="powerup-icon" title="FAB Bomb (R)" data-power="bomb">💥</div>
+        <div id="fabBombIcon" class="powerup-icon" title="FAB Bomb (R)" data-power="bomb">💨</div>
     </div>
 
     <!-- Special Effects -->
@@ -1883,7 +1883,7 @@ class StainSlayerGame {
         this.difficultyLevel = 1; // 1-5 scale
         this.performanceScore = 0; // Tracks recent performance
         this.recentBlocks = []; // Track last 10 blocks for performance analysis
-        this.baseProjectileInterval = 1500;
+        this.baseProjectileInterval = 1200;
         
         // Score Multiplier System
         this.scoreMultiplier = 1;
@@ -2005,7 +2005,7 @@ class StainSlayerGame {
         this.stageFog = null;
         this.atmosphericLights = [];
         this.lastProjectileTime = 0;
-        this.projectileInterval = 3000;
+        this.projectileInterval = 2000;
         
         // Controls
         this.keys = {};
@@ -2148,14 +2148,14 @@ updateDebugOverlay() {
 }
 
     
-   setupControls() {
+  setupControls() {
     // Keyboard controls
     document.addEventListener('keydown', (e) => {
-
         // Track key timing for conflict resolution
-            if (!this.lastKeyTime) this.lastKeyTime = {};
-            if (e.key === 'ArrowLeft') this.lastKeyTime.left = Date.now();
-            if (e.key === 'ArrowRight') this.lastKeyTime.right = Date.now();
+        if (!this.lastKeyTime) this.lastKeyTime = {};
+        if (e.key === 'ArrowLeft') this.lastKeyTime.left = Date.now();
+        if (e.key === 'ArrowRight') this.lastKeyTime.right = Date.now();
+        
         // Desktop-specific key handling
         if (!this.isMobile) {
             e.preventDefault(); // Prevent browser shortcuts on desktop
@@ -2198,170 +2198,149 @@ updateDebugOverlay() {
     
     // Setup power-up controls
     this.setupPowerUpControls();
+    this.setupDesktopPowerUpControls();
     
     // Touch controls for swipe detection (mobile only)
     if (this.isMobile) {
-        this.canvas.addEventListener('touchstart', (e) => {
+       this.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent scrolling during gameplay
             const touch = e.touches[0];
             this.touchStartX = touch.clientX;
             this.touchStartY = touch.clientY;
             this.touchStartTime = Date.now();
-        });
+        }, { passive: false }); // Allow preventDefault to work
         
         this.canvas.addEventListener('touchend', (e) => {
+             e.preventDefault(); // Notrigger warning
             const touchEndTime = Date.now();
             const touchDuration = touchEndTime - this.touchStartTime;
-            // Quick tap (not swipe) triggers repel - check this FIRST
-            if (touchDuration < 200 && this.repelCooldown <= 0) {
+           
+            if (e.changedTouches.length > 0) {
                 const touch = e.changedTouches[0];
-                const deltaX = Math.abs(touch.clientX - this.touchStartX);
-                const deltaY = Math.abs(touch.clientY - this.touchStartY);
+                const deltaX = touch.clientX - this.touchStartX;
+                const deltaY = touch.clientY - this.touchStartY;
+                const absDeltaX = Math.abs(deltaX);
+                const absDeltaY = Math.abs(deltaY);
+                const swipeSpeed = absDeltaX / touchDuration;
                 
-                // Only repel if minimal movement (true tap, not swipe)
-                if (deltaX < 20 && deltaY < 20) {
-                   // Check for double-tap first
+                // PRIORITY 1: Check for swipes FIRST (requires significant movement)
+                if (touchDuration < 500) {
+                    const isHorizontalSwipe = absDeltaX > absDeltaY;
+                    const isVerticalSwipe = absDeltaY > absDeltaX;
+                    
+                    // Fast horizontal swipe = dash
+                    if (isHorizontalSwipe && absDeltaX > 50 && swipeSpeed > 0.3) {
+                        if (this.dashCooldown <= 0) {
+                            const dashDirection = deltaX > 0 ? 1 : -1;
+                            this.dashVelocity = dashDirection * 8;
+                            this.dashDuration = 0.3;
+                            this.dashCooldown = 1.0;
+                            this.triggerHapticFeedback([30]);
+                            this.playSound('push');
+                        }
+                        return; // Exit early - swipe processed
+                    }
+                    
+                    // Vertical swipe = jump
+                    if (isVerticalSwipe && deltaY < -50 && !this.isJumping) {
+                        this.jump();
+                        return; // Exit early - swipe processed
+                    }
+                }
+                
+                // PRIORITY 2: Check for taps ONLY if minimal movement (not a swipe)
+                if (touchDuration < 200 && absDeltaX < 20 && absDeltaY < 20) {
+                    // Double-tap detection
                     const currentTime = Date.now();
                     if (currentTime - this.lastTapTime < this.doubleTapWindow) {
-                        // Double-tap detected
                         this.activateSpeedBoost();
-                        this.lastTapTime = 0; // Reset to prevent triple-tap
+                        this.lastTapTime = 0;
                         return;
-                    } else {
-                        // Single tap - do repel
+                    } else if (this.repelCooldown <= 0) {
+                        // Single tap - repel nearby projectiles
                         this.handleTapToRepel(touch.clientX, touch.clientY);
                         this.lastTapTime = currentTime;
                         return;
                     }
                 }
             }
-            
-            if (e.changedTouches.length > 0) {
-                const touch = e.changedTouches[0];
-                const deltaX = touch.clientX - this.touchStartX;
-                const deltaY = touch.clientY - this.touchStartY;
-                const swipeSpeed = Math.abs(deltaX) / touchDuration;
-                // Calculate dynamic bounds for swipes
-                const aspectRatio = window.innerWidth / window.innerHeight;
-                const vFov = this.camera.fov * Math.PI / 180;
-                const cameraZ = this.camera.position.z;
-                const playerZ = this.player.position.z;
-                const distance = cameraZ - playerZ;
-                const visibleHeight = 2 * Math.tan(vFov / 2) * distance;
-                const visibleWidth = visibleHeight * aspectRatio;
-                const spriteHalfWidth = 0.75;
-                const boundLimit = (visibleWidth / 2) - spriteHalfWidth - 0.5;
-                const mobileBoundLimit = this.isMobile ? Math.min(boundLimit, 3.5) : boundLimit;
-                
-                // Detect swipes
-                if (touchDuration < 500) {
-                    const isHorizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY);
-                    const isVerticalSwipe = Math.abs(deltaY) > Math.abs(deltaX);
-                    
-                    if (isHorizontalSwipe && Math.abs(deltaX) > 50 && swipeSpeed > 0.3) {
-                        // Fast swipe triggers dash
-                        if (this.dashCooldown <= 0) {
-                            const dashDirection = deltaX > 0 ? 1 : -1;
-                            this.dashVelocity = dashDirection * 8; // Fast dash speed
-                            this.dashDuration = 0.3; // 300ms dash
-                            this.dashCooldown = 1.0; // 1 second cooldown
-                            this.triggerHapticFeedback([30]); // Quick pulse for dash
-                            this.playSound('push'); // Audio feedback
-                        }
-                    } else if (isHorizontalSwipe && Math.abs(deltaX) > 30) {
-                        // Normal swipe - standard movement
-                        const moveAmount = this.isMobile ? 1.0 : 1.5;
-                        if (deltaX > 0) {
-                            
-                            this.player.position.x = Math.min(mobileBoundLimit, this.player.position.x + moveAmount);
-                        } else {
-                           
-                            this.player.position.x = Math.max(-mobileBoundLimit, this.player.position.x - moveAmount);
-                        }
-                    }
-                    
-                    if (isVerticalSwipe && deltaY < -50 && !this.isJumping) {
-                        // Swipe up - jump
-                        this.jump();
-                    }
-                }
-            }
         });
     }
          
-        // Mobile button controls - PROPERLY ACTIVATED
-        const jumpBtn = document.getElementById('jumpBtn');
-        const shieldBtn = document.getElementById('shieldBtn');
-        const pushBtn = document.getElementById('pushBtn');
+    // Mobile button controls - PROPERLY ACTIVATED
+    const jumpBtn = document.getElementById('jumpBtn');
+    const shieldBtn = document.getElementById('shieldBtn');
+    const pushBtn = document.getElementById('pushBtn');
+    
+    if (jumpBtn) {
+        // Jump button
+        jumpBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!this.isJumping) {
+                this.jump();
+            }
+        });
         
-        if (jumpBtn) {
-            // Jump button
-            jumpBtn.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                if (!this.isJumping) {
-                    this.jump();
-                }
-            });
-            
-            jumpBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (!this.isJumping) {
-                    this.jump();
-                }
-            });
-        }
-        
-        if (shieldBtn) {
-            // Shield button - hold to activate
-            shieldBtn.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                this.touchControls.shield = true;
-                this.player.shield.visible = true;
-            });
-            
-            shieldBtn.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                this.touchControls.shield = false;
-                this.player.shield.visible = false;
-            });
-            
-            shieldBtn.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                this.touchControls.shield = true;
-                this.player.shield.visible = true;
-            });
-            
-            shieldBtn.addEventListener('mouseup', (e) => {
-                e.preventDefault();
-                this.touchControls.shield = false;
-                this.player.shield.visible = false;
-            });
-        }
-        
-        if (pushBtn) {
-            // Push button
-            pushBtn.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                this.handlePush();
-            });
-            
-            pushBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.handlePush();
-            });
-        }
-        
-        // Start button
-        const startBtn = document.getElementById('startButton');
-        if (startBtn) {
-            startBtn.addEventListener('click', () => {
-                this.startGame();
-                this.trackEvent('game_started', {
-                    device: this.isMobile ? 'mobile' : 'desktop',
-                    quality: this.quality
-                });
-            });
-        }
+        jumpBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (!this.isJumping) {
+                this.jump();
+            }
+        });
     }
+    
+    if (shieldBtn) {
+        // Shield button - hold to activate
+        shieldBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.touchControls.shield = true;
+            this.player.shield.visible = true;
+        });
+        
+        shieldBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            this.touchControls.shield = false;
+            this.player.shield.visible = false;
+        });
+        
+        shieldBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            this.touchControls.shield = true;
+            this.player.shield.visible = true;
+        });
+        
+        shieldBtn.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            this.touchControls.shield = false;
+            this.player.shield.visible = false;
+        });
+    }
+    
+    if (pushBtn) {
+        // FAB Bomb button
+        pushBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.activateFABBomb();
+        });
+        
+        pushBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.activateFABBomb();
+        });
+    }
+    
+    // Start button
+    const startBtn = document.getElementById('startButton');
+    if (startBtn) {
+        startBtn.addEventListener('click', () => {
+            this.startGame();
+            this.trackEvent('game_started', {
+                device: this.isMobile ? 'mobile' : 'desktop',
+                quality: this.quality
+            });
+        });
+    }
+}
     
     jump() {
         if (!this.isJumping) {
@@ -3019,7 +2998,28 @@ updateDebugOverlay() {
  }
     
     async loadAssets() {
-        // Simulate loading
+        // Array of random loading tips
+        const loadingTips = [
+            "Daag vs Fab - epic battle shuru! #FabKaPower #StainSlayer",
+            "Politician ka kurta bachao, democracy bachao! #CleanPolitics #FabDefender", 
+            "Ande-tamatar ready hai, tu ready hai? #GameOn #FabProtection",
+            "Safed kapde = politician ki izzat! #WhiteShirt #FabMagic",
+            "Rally mein stains, ghar mein Fab! #DoubleProtection #FabLife",
+            "Neta ji ka reputation tera haath mein! #DefendTheLeader #FabShield",
+            "Public ka gussa vs Fab ka power! #StainWars #FabVictory",
+            "Democracy dirty, lekin kapde clean! #PoliticsVsFab #CleanGame",
+            "Tomato missile incoming - Fab shield ready? #StainAttack #FabReady",
+            "Game khelo, Fab sikho, hero bano! #GamingLife #FabHero"
+        ];
+        
+        // Select random tip and update loading screen
+        const randomTip = loadingTips[Math.floor(Math.random() * loadingTips.length)];
+        const loadingTipElement = document.querySelector('.loading-tip');
+        if (loadingTipElement) {
+            loadingTipElement.textContent = randomTip;
+        }
+        
+        // Simulate loading with progress
         const progressFill = document.getElementById('progressFill');
         if (progressFill) {
             for (let i = 0; i <= 100; i += 10) {
@@ -3043,7 +3043,7 @@ updateDebugOverlay() {
         const aideTexture = loader.load('https://assets.codepen.io/t-24779/aide_frontal_sheet1.png');
         
        // Mobile-responsive sprite sizing
-        const spriteSize = this.isMobile ? 1.1 : 1.5;
+        const spriteSize = this.isMobile ? 1.0 : 1.5;
         const geometry = new THREE.PlaneGeometry(spriteSize, spriteSize);
         const material = new THREE.MeshPhongMaterial({ 
             map: aideTexture,
@@ -3655,6 +3655,12 @@ createCelebrationBurst(maxParticles) {
 animateCelebrationParticle(particle) {
     const animate = () => {
         if (particle.lifetime <= 0 || !particle.parent) {
+            // Dispose geometry and material before removing
+            if (particle.geometry) particle.geometry.dispose();
+            if (particle.material) {
+                if (particle.material.map) particle.material.map.dispose();
+                particle.material.dispose();
+            }
             this.scene.remove(particle);
             return;
         }
@@ -3880,58 +3886,63 @@ updateStageAtmosphereEffects(deltaTime, isDesktop) {
         }
     }
     
-    animateAtmosphereParticle(particle, type) {
-        const animate = () => {
-            if (particle.lifetime <= 0 || !particle.parent) {
-                this.scene.remove(particle);
-                return;
+   animateAtmosphereParticle(particle, type) {
+    const animate = () => {
+        if (particle.lifetime <= 0 || !particle.parent) {
+            // Dispose geometry and material before removing
+            if (particle.geometry) particle.geometry.dispose();
+            if (particle.material) {
+                if (particle.material.map) particle.material.map.dispose();
+                particle.material.dispose();
             }
-            
-            // Basic physics
-            particle.position.add(particle.velocity.clone().multiplyScalar(0.016));
-            particle.lifetime -= 0.016;
-            
-            // Type-specific animations
-            switch(type) {
-                case 'flag':
-                    particle.wavePhase += 0.1;
-                    particle.position.x += Math.sin(particle.wavePhase) * 0.002;
-                    particle.velocity.y -= 0.003; // Light gravity
-                    break;
-                case 'petal':
-                    particle.swayPhase += 0.05;
-                    particle.position.x += Math.sin(particle.swayPhase) * 0.001;
-                    particle.velocity.y -= 0.008; // More gravity
-                    if (particle.rotationSpeed) {
-                        particle.rotation.z += particle.rotationSpeed;
-                    }
-                    break;
-                case 'streamer':
-                    particle.wavePhase += 0.08;
-                    particle.position.y += Math.sin(particle.wavePhase) * 0.002;
-                    particle.velocity.y -= 0.004;
-                    break;
-                case 'paper':
-                    particle.velocity.y -= 0.006;
-                    if (particle.rotationSpeed) {
-                        particle.rotation.z += particle.rotationSpeed;
-                    }
-                    break;
-                case 'dust':
-                    particle.driftPhase += 0.03;
-                    particle.position.x += Math.sin(particle.driftPhase) * 0.001;
-                    particle.velocity.y -= 0.002;
-                    break;
-            }
-            
-            // Fade out over time
-            particle.material.opacity *= 0.9985;
-            
-            requestAnimationFrame(animate);
-        };
-        animate();
-    }
-    
+            this.scene.remove(particle);
+            return;
+        }
+        
+        // Basic physics
+        particle.position.add(particle.velocity.clone().multiplyScalar(0.016));
+        particle.lifetime -= 0.016;
+        
+        // Type-specific animations
+        switch(type) {
+            case 'flag':
+                particle.wavePhase += 0.1;
+                particle.position.x += Math.sin(particle.wavePhase) * 0.002;
+                particle.velocity.y -= 0.003; // Light gravity
+                break;
+            case 'petal':
+                particle.swayPhase += 0.05;
+                particle.position.x += Math.sin(particle.swayPhase) * 0.001;
+                particle.velocity.y -= 0.008; // More gravity
+                if (particle.rotationSpeed) {
+                    particle.rotation.z += particle.rotationSpeed;
+                }
+                break;
+            case 'streamer':
+                particle.wavePhase += 0.08;
+                particle.position.y += Math.sin(particle.wavePhase) * 0.002;
+                particle.velocity.y -= 0.004;
+                break;
+            case 'paper':
+                particle.velocity.y -= 0.006;
+                if (particle.rotationSpeed) {
+                    particle.rotation.z += particle.rotationSpeed;
+                }
+                break;
+            case 'dust':
+                particle.driftPhase += 0.03;
+                particle.position.x += Math.sin(particle.driftPhase) * 0.001;
+                particle.velocity.y -= 0.002;
+                break;
+        }
+        
+        // Fade out over time
+        particle.material.opacity *= 0.9985;
+        
+        requestAnimationFrame(animate);
+    };
+    animate();
+}
     createStageSpecificCrowd(stage) {
         // Clear existing crowd first
         this.crowdMembers.forEach(member => this.scene.remove(member));
@@ -4704,7 +4715,7 @@ projectileGroup.add(pointsSprite);
     );
     direction.normalize();
     
-    const speed = this.slowMotionActive ? 1.5 : (2.5 + Math.random() * 1.5); // Much slower projectiles for testing
+    const speed = this.slowMotionActive ? 2.0 : (4.0 + Math.random() * 2.0); // Projectiles speed adjusted
     projectileGroup.velocity = direction.multiplyScalar(speed);
     projectileGroup.emoji = emoji;
     projectileGroup.isPriority = isPriority;
@@ -5152,6 +5163,40 @@ setupMobilePowerUpControls() {
     });
 }
 
+setupDesktopPowerUpControls() {
+    if (this.isMobile) return;
+    
+    const superShieldIcon = document.getElementById('superShieldIcon');
+    const slowMotionIcon = document.getElementById('slowMotionIcon');
+    const fabBombIcon = document.getElementById('fabBombIcon');
+    
+    // Shield icon - toggle shield visual on click (hold behavior)
+    if (superShieldIcon) {
+        superShieldIcon.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            if (this.fabPower >= 25 && this.isRunning) {
+                this.player.shield.visible = true;
+                this.touchControls.shield = true; // Use same flag as mobile
+            }
+        });
+        
+        superShieldIcon.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            this.player.shield.visible = false;
+            this.touchControls.shield = false;
+        });
+        
+        superShieldIcon.addEventListener('mouseleave', (e) => {
+            this.player.shield.visible = false;
+            this.touchControls.shield = false;
+        });
+    }
+    
+    // Slow motion and bomb keep existing click handlers (instant activation)
+    // These are already handled by handlePowerUpActivation 
+}
+
+
 setupDesktopPowerUpIndicators() {
     if (this.isMobile) return;
     
@@ -5515,25 +5560,32 @@ activateSlowMotion() {
 
 activateFABBomb() {
     if (this.fabPower < 50) {
-        this.showNotification('Not enough FAB Power! (50 required)');
+        if (this.isMobile) {
+            this.showRepelNotification('Need 50 FAB Power!');
+            this.triggerHapticFeedback([200, 100, 200]); // Error vibration
+        } else {
+            this.showNotification('Not enough FAB Power! (50 required)');
+        }
         return;
     }
     
-    this.fabPower -= 50;
-    this.showNotification('FAB BOMB!');
+    this.fabPower -= 50; // ONLY deduct once
+    
+    if (this.isMobile) {
+        this.showRepelNotification('💨 FAB BOMB! 💨');
+        this.triggerHapticFeedback([150, 50, 150, 50, 200]); // Powerful bomb pattern
+        this.triggerMobileShake(); // Screen shake for impact
+    } else {
+        this.showNotification('FAB BOMB!');
+    }
 
-    // Track FAB Bomb usage for achievement
-        if (!this.fabBombCount) this.fabBombCount = 0;
-        this.fabBombCount++;
-        this.usedPowerUps.add('bomb');
+    // Track power-up usage for achievements
+    this.usedPowerUps.add('bomb');
     
     // Track usage
     if (!this.analytics.powerUpsUsed.fabBomb) this.analytics.powerUpsUsed.fabBomb = 0;
     this.analytics.powerUpsUsed.fabBomb++;
     this.trackEvent('powerup_activated', { type: 'fabBomb' });
-    this.usedPowerUps.add('fabBomb');
-    // Check achievements immediately after FAB bomb use
-    this.checkAchievements();
     
     // Visual effect
     const icon = document.getElementById('fabBombIcon');
@@ -5549,7 +5601,7 @@ activateFABBomb() {
     // Clear all projectiles
     this.projectiles.forEach(projectile => {
         this.createBlockParticles(projectile.position);
-        this.returnToPool(projectile);
+        this.scene.remove(projectile);
     });
     this.projectiles = [];
     
@@ -5565,7 +5617,7 @@ activateFABBomb() {
     this.score += 100;
     this.updateScore();
     
-    // Visual celebration with reduced particles on mobile
+    // Visual celebration
     this.createCelebrationParticles();
     
     // Remove active state after effect
@@ -5573,51 +5625,6 @@ activateFABBomb() {
         if (icon) icon.classList.remove('active');
     }, 1000);
 }
-    
-    createBlockParticles(position) {
-        const particleCount = this.maxParticles;
-        const particles = [];
-        
-        for (let i = 0; i < particleCount; i++) {
-            const size = this.isMobile ? 0.15 : 0.1; // Bigger on mobile
-            const segments = this.isMobile ? 4 : 8; // Lower poly for performance
-            const geometry = new THREE.SphereGeometry(size, segments, segments);
-            const material = new THREE.MeshBasicMaterial({
-                color: new THREE.Color(Math.random(), Math.random(), Math.random()),
-                transparent: true
-            });
-            const particle = new THREE.Mesh(geometry, material);
-            particle.position.copy(position);
-            particle.velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 5,
-                Math.random() * 5,
-                (Math.random() - 0.5) * 5
-            );
-            particle.lifetime = 1;
-            particles.push(particle);
-            this.scene.add(particle);
-        }
-        
-        const animateParticles = () => {
-            particles.forEach((particle, index) => {
-                particle.position.add(particle.velocity.clone().multiplyScalar(0.02));
-                particle.velocity.y -= 0.1;
-                particle.lifetime -= 0.02;
-                particle.material.opacity = particle.lifetime;
-                
-                if (particle.lifetime <= 0) {
-                    this.scene.remove(particle);
-                    particles.splice(index, 1);
-                }
-            });
-            
-            if (particles.length > 0) {
-                requestAnimationFrame(animateParticles);
-            }
-        };
-        
-        animateParticles();
-    }
     
     createCelebrationParticles() {
         const colors = [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF];
@@ -5895,10 +5902,15 @@ if (!this.flashDazeActive && Math.random() < 0.003) {
             right: this.keys['ArrowRight']
         };
         
-        // Temporarily reverse controls
-        const tempLeft = this.keys['ArrowLeft'];
-        this.keys['ArrowLeft'] = this.keys['ArrowRight'];
-        this.keys['ArrowRight'] = tempLeft;
+       // Store original key states before swapping
+        this.originalKeyStates = {
+            left: this.keys['ArrowLeft'],
+            right: this.keys['ArrowRight']
+        };
+        
+        // Swap controls (reverse left/right)
+        this.keys['ArrowLeft'] = this.originalKeyStates.right;
+        this.keys['ArrowRight'] = this.originalKeyStates.left;
         
         setTimeout(() => {
             flashElement.style.display = 'none';
@@ -6305,48 +6317,52 @@ updateAudioLevels() {
         }
     }
     
-    createBlockParticles(position) {
-        const particleCount = this.isMobile ? 6 : 10; // Fewer but more impactful
-        const particles = [];
-        
-        for (let i = 0; i < particleCount; i++) {
-            const geometry = new THREE.SphereGeometry(0.1, 8, 8);
-            const material = new THREE.MeshBasicMaterial({
-                color: new THREE.Color(Math.random(), Math.random(), Math.random()),
-                transparent: true
-            });
-            const particle = new THREE.Mesh(geometry, material);
-            particle.position.copy(position);
-            particle.velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 5,
-                Math.random() * 5,
-                (Math.random() - 0.5) * 5
-            );
-            particle.lifetime = 1;
-            particles.push(particle);
-            this.scene.add(particle);
-        }
-        
-        const animateParticles = () => {
-            particles.forEach((particle, index) => {
-                particle.position.add(particle.velocity.clone().multiplyScalar(0.02));
-                particle.velocity.y -= 0.1;
-                particle.lifetime -= 0.02;
-                particle.material.opacity = particle.lifetime;
-                
-                if (particle.lifetime <= 0) {
-                    this.scene.remove(particle);
-                    particles.splice(index, 1);
-                }
-            });
-            
-            if (particles.length > 0) {
-                requestAnimationFrame(animateParticles);
-            }
-        };
-        
-        animateParticles();
+   createBlockParticles(position) {
+    const particleCount = this.isMobile ? 6 : 10;
+    const particles = [];
+    
+    for (let i = 0; i < particleCount; i++) {
+        const geometry = new THREE.SphereGeometry(0.1, 8, 8);
+        const material = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(Math.random(), Math.random(), Math.random()),
+            transparent: true
+        });
+        const particle = new THREE.Mesh(geometry, material);
+        particle.position.copy(position);
+        particle.velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 5,
+            Math.random() * 5,
+            (Math.random() - 0.5) * 5
+        );
+        particle.lifetime = 1;
+        particles.push(particle);
+        this.scene.add(particle);
     }
+    
+    const animateParticles = () => {
+        particles.forEach((particle, index) => {
+            particle.position.add(particle.velocity.clone().multiplyScalar(0.02));
+            particle.velocity.y -= 0.1;
+            particle.lifetime -= 0.02;
+            particle.material.opacity = particle.lifetime;
+            
+            if (particle.lifetime <= 0) {
+                // Dispose geometry and material before removing
+                if (particle.geometry) particle.geometry.dispose();
+                if (particle.material) particle.material.dispose();
+                
+                this.scene.remove(particle);
+                particles.splice(index, 1);
+            }
+        });
+        
+        if (particles.length > 0) {
+            requestAnimationFrame(animateParticles);
+        }
+    };
+    
+    animateParticles();
+}
     
  updatePlayer(deltaTime) {
     const speed = this.speedBoostActive ? 8 : 5; // 60% faster when boosted
@@ -6423,15 +6439,26 @@ updateAudioLevels() {
 
     const boundLimit = stageBounds[this.currentStage] || (isCurrentlyMobile ? (1.6 - spriteHalfWidth) : (3.5 - spriteHalfWidth));
 
-    // Anti-sticking logic with bounce-back
-    if (this.player.position.x > boundLimit) {
-        this.player.position.x = boundLimit - 0.05; // Bounce slightly inward
-    } else if (this.player.position.x < -boundLimit) {
-        this.player.position.x = -boundLimit + 0.05; // Bounce slightly inward
+    // Desktop-specific boundary handling (mobile uses simple clamping)
+    if (!isCurrentlyMobile) {
+        // Desktop: Allow inward movement when at boundary
+        if (this.player.position.x > boundLimit && (leftPressed && !rightPressed)) {
+            // At right boundary but trying to move left (inward) - allow
+        } else if (this.player.position.x < -boundLimit && (rightPressed && !leftPressed)) {
+            // At left boundary but trying to move right (inward) - allow  
+        } else {
+            // Clamp to boundaries for outward movement
+            this.player.position.x = Math.max(-boundLimit, Math.min(boundLimit, this.player.position.x));
+        }
     }
 
     // Ensure bounds are respected
     this.player.position.x = Math.max(-boundLimit, Math.min(boundLimit, this.player.position.x));
+
+    // Mobile: Simple boundary clamping (preserves existing behavior)
+    if (isCurrentlyMobile) {
+        this.player.position.x = Math.max(-boundLimit, Math.min(boundLimit, this.player.position.x));
+    }
 
 // ENHANCED DEBUG: Complete boundary sticking analysis - ADD THIS BLOCK
 if (this.currentStage === 'debate') {
@@ -6584,13 +6611,7 @@ if (this.keys['Shift'] || this.touchControls.shield) {
     }
 }
     
-    // Push
-    if (this.keys['x'] || this.keys['X']) {
-        this.handlePush();
-        playerState = 'push';
-        this.keys['x'] = false;
-        this.keys['X'] = false;
-    }
+    // Push functionality replaced with FAB Bomb button
     
     // Update sprite texture based on direction
     if (this.player.textures && this.player.textures[direction]) {
@@ -6752,22 +6773,28 @@ handleTapToRepel(screenX, screenY) {
         }
     }
 
-    animateRepelParticle(particle) {
-        const animate = () => {
-            if (particle.lifetime <= 0 || !particle.parent) {
-                this.scene.remove(particle);
-                return;
+   animateRepelParticle(particle) {
+    const animate = () => {
+        if (particle.lifetime <= 0 || !particle.parent) {
+            // Dispose geometry and material before removing
+            if (particle.geometry) particle.geometry.dispose();
+            if (particle.material) {
+                if (particle.material.map) particle.material.map.dispose();
+                particle.material.dispose();
             }
-            
-            particle.position.add(particle.velocity.clone().multiplyScalar(0.016));
-            particle.velocity.multiplyScalar(0.95); // Slow down over time
-            particle.lifetime -= 0.016;
-            particle.material.opacity = particle.lifetime / 0.8;
-            
-            requestAnimationFrame(animate);
-        };
-        animate();
-    }
+            this.scene.remove(particle);
+            return;
+        }
+        
+        particle.position.add(particle.velocity.clone().multiplyScalar(0.016));
+        particle.velocity.multiplyScalar(0.95); // Slow down over time
+        particle.lifetime -= 0.016;
+        particle.material.opacity = particle.lifetime / 0.8;
+        
+        requestAnimationFrame(animate);
+    };
+    animate();
+}
 
     activateSpeedBoost() {
         if (this.speedBoostActive) return; // Prevent stacking
@@ -7128,8 +7155,8 @@ transitionToStage(newStage) {
     this.totalProjectiles = 0;
     this.gameStartTime = Date.now();
     this.currentStage = 'rally';
-    this.projectileInterval = 3000;
-    this.baseProjectileInterval = 3000;
+    this.projectileInterval = 2000;
+    this.baseProjectileInterval = 2000;
     this.fabPower = 0;
     this.comboCount = 0;
     
@@ -7391,41 +7418,62 @@ cleanupPowerUps() {
     
     generateQRCode();
     
+   // Initialize 3D viewer after DOM rendering (minimal delay)
     setTimeout(() => {
         if (!window.product3DViewer) {
             window.product3DViewer = new Product3DViewer('product3DCanvas', 'product3DContainer');
         }
-    }, 500);
+    }, 100); // Reduced for faster loading
     
     this.showResultsScreen();
 }
 
     calculatePerformanceRating() {
-        const accuracy = this.totalProjectiles > 0 ? 
-            Math.floor((this.blockedCount / this.totalProjectiles) * 100) : 0;
-        
-        if (this.score >= 500 && accuracy >= 80) {
-            return { 
-                message: 'Waah! Fab ka asli defender!', 
-                color: '#FFD700' 
+         const accuracy = this.totalProjectiles > 0 ? 
+             Math.floor((this.blockedCount / this.totalProjectiles) * 100) : 0;
+
+        if (this.score >= 600 && accuracy >= 85) {
+             return { 
+                message: 'Bhaisaab! Tum toh Fab ke superhero nikle!', 
+                color: '#8B0000' // Dark red for contrast
+             };
+        } else if (this.score >= 400 && accuracy >= 70) {
+             return { 
+                message: 'Arre waah! Politician ki kurta bilkul safe!', 
+                color: '#006400' // Dark green
+             };
+        } else if (this.score >= 250 && accuracy >= 55) {
+             return {  
+                message: 'Shabash! Democracy ka rakshak ban gaye!', 
+                color: '#4B0082' // Indigo
             };
-        } else if (this.score >= 300 && accuracy >= 60) {
+        } else if (this.score >= 150 && accuracy >= 40) {
             return { 
-                message: 'Great job! Politician is safe!', 
-                color: '#00FF00' 
+                message: 'Chalo theek hai! Kam se kam try toh kiya!', 
+                color: '#8B4513' // Saddle brown
             };
-        } else if (this.score >= 100 && accuracy >= 40) {
+        } else if (this.score >= 80 && accuracy >= 25) {
             return { 
-                message: 'Good start! Keep protecting!', 
-                color: '#87CEEB' 
+                message: 'Yaar, thoda aur focus karo!', 
+                color: '#B22222' // Fire brick red
             };
-        } else {
+        } else if (this.score >= 30) {
             return { 
-                message: 'Abhi practice karo yaar!', 
-                color: '#FFA500' 
+                message: 'Bhai, Fab ka tutorial dekh lo pehle!', 
+                color: '#800080' // Purple
             };
-        }
-    }
+        } else if (this.score >= 10) {
+            return { 
+                message: 'Kya yaar! Neta ji ko bachana tha, stain lagana nahi!', 
+                color: '#DC143C' // Crimson
+             };
+         } else {
+             return { 
+                message: 'Arre bhai! Game samjhe ho ya sirf mazaak kar rahe ho?', 
+                color: '#8B0000' // Dark red
+             };
+         }
+     }
     
    onResize() {
     const width = window.innerWidth;
