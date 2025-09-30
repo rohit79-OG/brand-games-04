@@ -119,7 +119,7 @@
     display: none;
     flex-direction: column;
     align-items: center;
-    justify-content: center; /* Keep center for desktop */
+    justify-content: center; 
     z-index: 9000 !important;
     opacity: 0;
     visibility: hidden;
@@ -158,15 +158,15 @@
 /* Mobile-specific centering for start screen */
 @media (max-width: 768px) {
     .start-screen {
-        padding: max(env(safe-area-inset-top), 20px) 20px max(env(safe-area-inset-bottom), 20px) 20px !important;
-        justify-content: center !important; /* Keep centered */
-        min-height: 100vh;
-        min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        height: 100dvh; /* Dynamic viewport - excludes Safari UI */
+        height: 100vh; /* Fallback for older browsers */
+        padding: 20px !important;
+        justify-content: center !important; /* Keep centered */ 
     }
     
     .start-card {
-       max-height: 85vh !important;
-       max-height: calc(85vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+       max-height: 80dvh !important; /* Use dynamic viewport */
+       max-height: 80vh !important; /* Fallback */
        overflow-y: auto !important;
        padding: 30px !important;
        margin: 0 !important; /* Removed forced vertical margins */
@@ -875,7 +875,7 @@
             75% { transform: translateX(3px); }
         }
 
-        /* Move audio controls to bottom-left for both desktop and mobile */
+        /* Audio controls to bottom-left for both desktop and mobile */
         .audio-controls {
             position: fixed;
             bottom: 20px;
@@ -1092,7 +1092,7 @@
     display: none;
     flex-direction: column;
     align-items: center;
-    justify-content: center; /* Keep center for desktop */
+    justify-content: center; 
     z-index: 8000 !important;
     color: white;
     visibility: hidden;
@@ -1128,17 +1128,17 @@
 /* Mobile-specific centering for results screen */
 @media (max-width: 768px) {
     .results-screen {
-        padding: max(env(safe-area-inset-top), 20px) 20px max(env(safe-area-inset-bottom), 20px) 20px !important;
+        height: 100dvh; /* Dynamic viewport - excludes Safari UI */
+        height: 100vh; /* Fallback for older browsers */
+        padding: 20px !important;
         justify-content: center !important; /* Keep centered */
-        min-height: 100vh;
-        min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     }
     
     .results-card {
-        max-height: 85vh !important;
-        max-height: calc(85vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+        max-height: 75dvh !important; /* Use dynamic viewport */
+        max-height: 75vh !important; /* Fallback */
         overflow-y: auto !important;
-        padding: 25px !important;
+        padding: 20px 25px !important; /* Reduce vertical padding */
         margin: 0 !important; /* Removed forced vertical margins */
     }
 }
@@ -1576,7 +1576,7 @@
     </script>
 
   <script type="module">
-// ============= RESULTS SCREEN FUNCTIONS (keeping existing) =============
+// ============= RESULTS SCREEN FUNCTIONS =============
 function generateQRCode() {
     try {
         console.log("🎯 Generating QR code...");
@@ -1676,7 +1676,7 @@ function shareOnWhatsApp() {
     window.open(whatsappUrl, '_blank');
 }
 
-// 3D Product Viewer (keeping existing)
+// 3D Product Viewer 
 class Product3DViewer {
     constructor(canvasId, containerId) {
         if (typeof THREE === 'undefined') {
@@ -1857,7 +1857,7 @@ class Product3DViewer {
     }
 }
 
-// ============= FIXED GAME ENGINE =============
+// ============= GAME ENGINE =============
 class StainSlayerGame {
     constructor() {
         this.debugMode = true; // Add this line
@@ -2211,7 +2211,7 @@ updateDebugOverlay() {
         }, { passive: false }); // Allow preventDefault to work
         
         this.canvas.addEventListener('touchend', (e) => {
-             e.preventDefault(); // Notrigger warning
+             e.preventDefault(); // No trigger warning
             const touchEndTime = Date.now();
             const touchDuration = touchEndTime - this.touchStartTime;
            
@@ -2223,7 +2223,7 @@ updateDebugOverlay() {
                 const absDeltaY = Math.abs(deltaY);
                 const swipeSpeed = absDeltaX / touchDuration;
                 
-                // PRIORITY 1: Check for swipes FIRST (requires significant movement)
+                // Check for swipes FIRST (requires significant movement)
                 if (touchDuration < 500) {
                     const isHorizontalSwipe = absDeltaX > absDeltaY;
                     const isVerticalSwipe = absDeltaY > absDeltaX;
@@ -2248,7 +2248,7 @@ updateDebugOverlay() {
                     }
                 }
                 
-                // PRIORITY 2: Check for taps ONLY if minimal movement (not a swipe)
+                // Check for taps ONLY if minimal movement (not a swipe)
                 if (touchDuration < 200 && absDeltaX < 20 && absDeltaY < 20) {
                     // Double-tap detection
                     const currentTime = Date.now();
@@ -2267,7 +2267,7 @@ updateDebugOverlay() {
         });
     }
          
-    // Mobile button controls - PROPERLY ACTIVATED
+    // Mobile button controls - ACTIVATED
     const jumpBtn = document.getElementById('jumpBtn');
     const shieldBtn = document.getElementById('shieldBtn');
     const pushBtn = document.getElementById('pushBtn');
@@ -2412,7 +2412,7 @@ updateDebugOverlay() {
             muteBtn.classList.toggle('muted', this.globalMuted);
         };
         
-        // FIX: Add mobile touch state tracking
+        // Add mobile touch state tracking
         let touchStarted = false;
         
         // Desktop click handler
@@ -2423,7 +2423,7 @@ updateDebugOverlay() {
             }
         });
         
-        // FIX: Add proper touchstart handler
+        // Add proper touchstart handler
         muteBtn.addEventListener('touchstart', (e) => {
             e.preventDefault();
             touchStarted = true;
@@ -2442,13 +2442,13 @@ updateDebugOverlay() {
             }
         });
         
-        // FIX: Add touchcancel handler
+        // Add touchcancel handler
         muteBtn.addEventListener('touchcancel', (e) => {
             touchStarted = false;
             muteBtn.style.background = 'rgba(255, 255, 255, 0.1)';
         });
 
-        // FIX: Enhanced mobile touch properties
+        // Enhanced mobile touch properties
         muteBtn.style.touchAction = 'manipulation';
         muteBtn.style.userSelect = 'none';
         muteBtn.style.webkitTapHighlightColor = 'transparent';
@@ -2512,7 +2512,7 @@ updateDebugOverlay() {
             }
         }
         
-        // Add crowd chant simulation
+        // crowd chant simulation
         this.playChant(now, measureLength);
         
         // Schedule next loop
@@ -2538,7 +2538,7 @@ updateDebugOverlay() {
             }
         });
         
-        // Add ambient market sounds
+        // Ambient market sounds
         this.playAmbientSound('market', now, measureLength);
         
         // Schedule next loop
@@ -2839,7 +2839,6 @@ updateDebugOverlay() {
     
     playAmbientSound(type, time, duration) {
         // Placeholder for ambient sounds
-        // In production, you'd load actual ambient audio files
         const osc = this.audioContext.createOscillator();
         const gain = this.audioContext.createGain();
         
@@ -2853,7 +2852,7 @@ updateDebugOverlay() {
         osc.stop(time + duration);
     }
     
-    // Enhanced sound effects with variations
+    // Sound effects with variations
     initializeSoundVariations() {
         this.soundVariations = {
             block: [
@@ -3061,7 +3060,7 @@ updateDebugOverlay() {
         this.player.totalFrames = 12;
         this.player.animationTime = 0;
         
-       // Enhanced FAB-branded shield with glow effect
+       // FAB-branded shield with glow effect
 this.player.shield = new THREE.Group();
 
 // Main shield disc with FAB colors
@@ -3199,7 +3198,7 @@ console.log('Shield userData created:', this.player.shield.userData);
             podiumColor = 0x8B4513;
     }
     
-    // Enhanced podium box with stage-specific texture
+    // Podium box with stage-specific texture
     const podiumGeometry = new THREE.BoxGeometry(2.2, 1.6, 1.1);
     const podiumMaterial = new THREE.MeshPhongMaterial({ 
         map: podiumTexture,
@@ -3212,7 +3211,7 @@ console.log('Shield userData created:', this.player.shield.userData);
     podiumBox.receiveShadow = true;
     podiumGroup.add(podiumBox);
     
-    // Enhanced podium details based on stage
+    // Podium details based on stage
     if (stage === 'rally' || stage === 'debate') {
         // Add metallic trim for formal stages
         const trimGeometry = new THREE.BoxGeometry(2.3, 0.1, 1.2);
@@ -3226,7 +3225,7 @@ console.log('Shield userData created:', this.player.shield.userData);
         podiumGroup.add(trim);
     }
     
-    // Enhanced microphone stand
+    // Microphone stand
     const standGeometry = new THREE.CylinderGeometry(0.03, 0.03, 1.6);
     const standMaterial = new THREE.MeshPhongMaterial({ 
         map: this.createMetalTexture(),
@@ -3237,7 +3236,7 @@ console.log('Shield userData created:', this.player.shield.userData);
     stand.position.set(0, 1.6, -1.4);
     podiumGroup.add(stand);
     
-    // Enhanced microphone
+    // Microphone
     const micGeometry = new THREE.SphereGeometry(0.1, 12, 12);
     const micMaterial = new THREE.MeshPhongMaterial({ 
         map: this.createMetalTexture(),
@@ -3289,7 +3288,7 @@ console.log('Shield userData created:', this.player.shield.userData);
                 floorColor = 0x654321;
         }
         
-        // Enhanced floor with proper texture scaling
+        // Floor with proper texture scaling
         const floorGeometry = new THREE.PlaneGeometry(20, 10);
         floorTexture.wrapS = THREE.RepeatWrapping;
         floorTexture.wrapT = THREE.RepeatWrapping;
@@ -3588,7 +3587,7 @@ console.log('Shield userData created:', this.player.shield.userData);
     // Stage-specific celebration particle burst
     this.createCelebrationBurst(maxBurstParticles);
     
-    // Enhanced audio feedback for desktop
+    // Audio feedback for desktop
     if (isDesktop) {
         this.playSound('block'); // Trigger additional block sound for crowd reaction
     }
@@ -4175,7 +4174,7 @@ updateStageAtmosphereEffects(deltaTime, isDesktop) {
 }
     
    updateAnimatedClouds(deltaTime) {
-    // CRITICAL: Remove clouds immediately if not in rally stage
+    // Remove clouds immediately if not in rally stage
     if (this.currentStage !== 'rally') {
         if (this.cloudSprites.length > 0) {
             console.log(`🌥️ Removing ${this.cloudSprites.length} clouds - wrong stage: ${this.currentStage}`);
@@ -4224,7 +4223,7 @@ updateStageAtmosphereEffects(deltaTime, isDesktop) {
     this.cloudSprites = [];
 }
 
-     // Enhanced Texture System
+     // Detailed Texture System
     createMarbleTexture() {
         const canvas = document.createElement('canvas');
         canvas.width = 512;
@@ -4572,7 +4571,7 @@ updateStageAtmosphereEffects(deltaTime, isDesktop) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     
-    // Add slight white outline for visibility
+    // Slight white outline for visibility
     ctx.strokeStyle = '#FFFFFF';
     ctx.lineWidth = 2;
     ctx.strokeText(emoji, 24, 24);
@@ -4596,7 +4595,7 @@ updateStageAtmosphereEffects(deltaTime, isDesktop) {
     sprite.scale.set(projectileSize * 8, projectileSize * 8, 1);
     projectileGroup.add(sprite);
     
-   // Enhanced flat glowing ring system - TIGHTER and STATIC
+   // Flat glowing ring system - TIGHTER and STATIC
    const ringGeometry = new THREE.RingGeometry(projectileSize * 2.8, projectileSize * 3.4, 32);
    const ringMaterial = new THREE.MeshBasicMaterial({
     color: 0x00B4E6, // FAB light blue brand color
@@ -4659,7 +4658,7 @@ projectileGroup.add(outerGlow);
 projectileGroup.add(glowRing);
 projectileGroup.add(pointsSprite);
     
-    // Enhanced spawn positioning for multi-directional gameplay
+    // Spawn positioning for multi-directional gameplay
     const spawnDistance = 10;
     const maxSpawnX = this.isMobile ? 3.5 : 6; // Balanced spawn range for desktop
     const spawnRoll = Math.random();
@@ -4751,7 +4750,7 @@ updateProjectiles(deltaTime) {
             projectile.rotation.z += projectile.rotationSpeed.z * deltaTime;
         }
         
-        // Enhanced collision detection for desktop accuracy
+        // Collision detection for desktop accuracy
         const playerDistance = projectile.position.distanceTo(this.player.position);
         const xDiff = Math.abs(this.player.position.x - projectile.position.x);
         const yDiff = Math.abs(this.player.position.y - projectile.position.y);
@@ -4945,7 +4944,7 @@ getStainColor(emoji) {
     
     // UNIFIED GAME OVER SYSTEM - Check consecutive hits first, then health
     if (this.consecutiveHits >= this.maxConsecutiveHits) {
-        // Ensure at least 2 seconds passed since critical warning
+        // At least 2 seconds passed since critical warning
         const timeSinceWarning = Date.now() - this.criticalWarningTime;
         if (timeSinceWarning >= 2000 || this.criticalWarningTime === 0) {
             console.log("🔥 GAME OVER TRIGGER - Grace period expired or no warning given");
@@ -5126,10 +5125,10 @@ setupBloomEffect() {
     
   // Power-Up System Implementation
 setupPowerUpControls() {
-    // Enhanced mobile power-up controls
+    // Mobile power-up controls
     this.setupMobilePowerUpControls();
     
-    // Enhanced desktop visual indicators
+    // Desktop visual indicators
     this.setupDesktopPowerUpIndicators();
 }
 
@@ -5200,7 +5199,7 @@ setupDesktopPowerUpControls() {
 setupDesktopPowerUpIndicators() {
     if (this.isMobile) return;
     
-    // Add keyboard hints, cost info, and click handlers to power-up icons
+    // Keyboard hints, cost info, and click handlers to power-up icons
     const superShieldIcon = document.getElementById('superShieldIcon');
     const slowMotionIcon = document.getElementById('slowMotionIcon');
     const fabBombIcon = document.getElementById('fabBombIcon');
@@ -5216,13 +5215,13 @@ setupDesktopPowerUpIndicators() {
             element.dataset.cost = cost;
             element.style.cursor = 'pointer';
             
-            // Add click handler for desktop
+            // Click handler for desktop
             element.addEventListener('click', (e) => {
                 e.preventDefault();
                 this.handlePowerUpActivation(power, cost);
             });
             
-            // Add visual feedback for desktop
+            // Visual feedback for desktop
             element.addEventListener('mousedown', (e) => {
                 e.preventDefault();
                 element.style.transform = 'scale(0.95)';
@@ -5292,7 +5291,7 @@ showInsufficientPowerFeedback(powerType, cost) {
     }
 }
 
-// Enhanced power bar update with visual feedback
+// Power bar update with visual feedback
 updatePowerBar() {
     const powerBar = document.getElementById('powerBar');
     if (powerBar) {
@@ -5303,7 +5302,7 @@ updatePowerBar() {
     const slowMotionIcon = document.getElementById('slowMotionIcon');
     const fabBombIcon = document.getElementById('fabBombIcon');
     
-    // Enhanced visual feedback with color coding
+    // Visual feedback with color coding
     if (superShieldIcon) {
         const canAfford = this.fabPower >= 25;
         superShieldIcon.style.opacity = canAfford ? '1' : '0.4';
@@ -5491,7 +5490,7 @@ activateSuperShield() {
     const shieldIcon = document.getElementById('superShieldIcon');
     if (shieldIcon) shieldIcon.classList.add('active');
     
-    // Enhanced shield visual using same logic as keyboard activation
+    // Shield visual using same logic as keyboard activation
     this.player.shield.visible = true;
     if (this.player.shield.userData && this.player.shield.userData.ring) {
         this.player.shield.userData.ring.material.emissiveIntensity = 1.0; // Extra bright for power-up
@@ -5889,7 +5888,7 @@ activateFABBomb() {
             perceptionBar.style.width = this.perceptionMeter + '%';
         }
         
-        // Flash daze effect - CORRECTED VERSION
+        // Flash daze effect 
 if (!this.flashDazeActive && Math.random() < 0.003) {
     this.flashDazeActive = true;
     const flashElement = document.getElementById('flashDaze');
@@ -6017,7 +6016,7 @@ updateIntegratedStageMeter() {
             newUnlocks.push('fabPowerUser');
         }
 
-        // Enhanced accuracy tracking for perfectMinute achievement
+        // Accuracy tracking for perfectMinute achievement
         if (!this.achievements.perfectMinute.unlocked && sessionTime >= 30) {
           const thirtySecondsAgo = Date.now() - 30000;
             const recentActions = this.recentActions.filter(action => action.time >= thirtySecondsAgo);
@@ -6460,7 +6459,7 @@ updateAudioLevels() {
         this.player.position.x = Math.max(-boundLimit, Math.min(boundLimit, this.player.position.x));
     }
 
-// ENHANCED DEBUG: Complete boundary sticking analysis - ADD THIS BLOCK
+// DEBUG: Complete boundary sticking analysis - ADD THIS BLOCK
 if (this.currentStage === 'debate') {
     const currentX = this.player.position.x;
     const leftKey = this.keys['ArrowLeft'];
@@ -7352,7 +7351,7 @@ cleanupPowerUps() {
     }
     
     updateDesktopParticleEffects(deltaTime) {
-        // Enhanced shield glow animation for desktop
+        // Shield glow animation for desktop
         if (this.player.shield.visible && this.player.shield.userData) {
             this.player.shield.userData.pulseTime += deltaTime * 2;
             const pulse = Math.sin(this.player.shield.userData.pulseTime) * 0.3 + 0.7;
