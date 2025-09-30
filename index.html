@@ -161,7 +161,7 @@
         height: 100dvh; /* Dynamic viewport - excludes Safari UI */
         height: 100vh; /* Fallback for older browsers */
         padding: 20px !important;
-        justify-content: center !important; /* Keep centered */ 
+        align-items: center !important;
     }
     
     .start-card {
@@ -169,7 +169,8 @@
        max-height: 80vh !important; /* Fallback */
        overflow-y: auto !important;
        padding: 30px !important;
-       margin: 0 !important; /* Removed forced vertical margins */
+       margin-top: -5vh !important; /* Shift up slightly */
+       margin-bottom: 0 !important;
     }
 }
         .fab-logo-img {
@@ -1131,7 +1132,7 @@
         height: 100dvh; /* Dynamic viewport - excludes Safari UI */
         height: 100vh; /* Fallback for older browsers */
         padding: 20px !important;
-        justify-content: center !important; /* Keep centered */
+        align-items: center !important;
     }
     
     .results-card {
@@ -1139,7 +1140,8 @@
         max-height: 75vh !important; /* Fallback */
         overflow-y: auto !important;
         padding: 20px 25px !important; /* Reduce vertical padding */
-        margin: 0 !important; /* Removed forced vertical margins */
+        margin-top: -5vh !important; /* Shift up slightly */
+       margin-bottom: 0 !important;
     }
 }
 
